@@ -3,6 +3,7 @@ dist/
 coverage/
 .vitest/
 .eslintcache
+.worktree/
 .worktrees/
 .DS_Store
 *.log
