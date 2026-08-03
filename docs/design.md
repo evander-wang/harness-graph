@@ -11,6 +11,14 @@
 3. Open Workflow SDK 只作为内部实现依赖，不把 SDK 类型扩散到 CLI 和目录约定。
 4. 所有 Workflow、Skill、Check 和 Model 都从 Harness Root 读取，目标 Workspace 只允许本地目录，不访问远程执行目标。
 
+## 项目本地安装
+
+`install` 将发布载荷原子安装到业务项目的 `harness-next/`。Project Root 与默认 Workspace Root 是业务项目根，Harness Root 是 `<project>/harness-next`，Runtime Root 是 `<harness>/runtime`，State Root 是 `<harness>/.state`。`installation.json` 只保存布局和版本，不保存机器绝对路径。
+
+安装 Module 通过 `installHarnessProject()`、`checkHarnessProject()` 和 `resolveHarnessPaths()` 三个 Interface 隐藏载荷复制、Runtime 生产依赖恢复、托管块校验、幂等规则、Catalog 激活和 Root 推导。安装器先在 Project Root 内创建临时目录，完成 Runtime、资产、启动器、清单和 Catalog 后再移动到 `harness-next/`。
+
+`AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 仍归业务项目所有。安装器只替换唯一的版本化托管块；缺失半边、重复标记、目录或不可读写文件都会使安装失败，不猜测、不合并。
+
 ## 模块结构
 
 ```text
@@ -25,7 +33,7 @@ workflow.yaml ──► compileWorkflow() ──► 标准校验、静态图、M
                     └── cancel(runId, reason)
                               │
                               ▼
-                    .harness/runs/<run-id>/state.json
+                    harness-next/.state/runs/<run-id>/state.json
 ```
 
 `compileWorkflow()` 是静态编译 Interface。Runtime 使用 `start / continue / cancel` 作为小 Interface，调用方不需要理解 YAML 解析、Transition、状态文件、Hash、Revision 和 Cycle 计数。
@@ -36,7 +44,7 @@ Mermaid 和 SVG Renderer 使用同一个 `FlatGraph`。SVG 使用 Dagre 在本�
 
 `src/node-project/` 是 Node.js 工程检查的深 Module。它通过 `detectPackageManager(rootDir)` 和 `checkNodeProject()` 两个小 Interface 隐藏根 Lockfile 识别、Node.js 版本一致性、工程基线检查和 npm、Yarn、pnpm 命令差异。Workflow 和 Check 不复制这些规则。
 
-Runtime 区分 Harness Root 和 Workspace Root。Harness Root 保存 Workflow、Skill、Check、Catalog 和 `.harness/runs/`；Workspace Root 是本次 Run 固化的目标项目目录。Check 命令通过 `cwd: harness | workspace` 明确执行位置，`project-check` 从 Harness 运行但检查 Workspace。
+Runtime 区分 Project、Harness、Runtime、State 和 Workspace Root。Harness Root 保存 Workflow、Skill、Check、Model 和 Catalog；State Root 保存 Run 和锁；Workspace Root 是本次 Run 固化的目标项目目录。Check 命令通过 `cwd: harness | workspace` 明确执行位置，前者指向 `harness-next/`，后者指向业务项目根。引擎仓库开发时保留原目录兼容层和 `.harness/` 状态目录。
 
 ## 校验顺序
 
@@ -56,7 +64,7 @@ Runtime 只支持 `.status == "passed|needs_changes|blocked"` 条件。其他表
 
 ## 数据结构
 
-Workflow 和 Step 的业务输入输出都是可选的。需要稳定结构校验时遵循 Open Workflow 的 `input.schema`、`output.schema`。项目内外部 Schema 使用 `harness://models/` URI，并固定解析到当前仓库的 `harness/models/`。
+Workflow 和 Step 的业务输入输出都是可选的。需要稳定结构校验时遵循 Open Workflow 的 `input.schema`、`output.schema`。项目内外部 Schema 使用 `harness://models/` URI，安装后固定解析到 Harness Root 的 `models/`。
 
 这种 URI 不包含机器绝对路径，不访问网络，也不能逃逸到 `harness/models/` 之外。Schema 的 `$ref` 可以引用其他 `harness://models/` 资源或当前文档片段，其他外部 URI 会被拒绝。
 
@@ -89,7 +97,7 @@ data: {} # 可选业务数据
 - Step 超过 `maxStepAttempts` 后进入 `blocked`。
 - 到达结束节点时使用 Workflow Output Schema 校验 `data`。
 
-状态使用临时文件加重命名原子写入 `.harness/runs/`。第一版不提供宿主生命周期 Hook，也不实现多个 Agent 在同一 Worktree 并发执行。
+状态使用临时文件加重命名原子写入 `harness-next/.state/runs/`。第一版不提供宿主生命周期 Hook，也不实现多个 Agent 在同一业务项目并发执行。
 
 ## 当前执行范围
 

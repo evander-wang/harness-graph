@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { readFile } from "node:fs/promises";
+import { join, relative, resolve, sep } from "node:path";
 
 import type { Specification } from "@openworkflowspec/sdk";
 
@@ -10,6 +9,24 @@ import {
   type CheckCommandExecution,
 } from "./checks.js";
 import { compileWorkflow, validateWorkflowData } from "./compiler.js";
+import { resolveHarnessLayout } from "./paths.js";
+import {
+  parseRunState,
+  type WorkflowRunState,
+  type WorkflowStepDirective,
+} from "./run-state.js";
+import {
+  readAllRunStates,
+  readRunState,
+  withRuntimeLock,
+  writeRunState,
+} from "./runtime-state.js";
+import {
+  findTask,
+  resolveNextStep,
+  taskEntries,
+  type TaskEntry,
+} from "./runtime-transition.js";
 
 export type StepResultStatus = "passed" | "needs_changes" | "blocked";
 
@@ -22,12 +39,7 @@ export type StepResult = {
   data?: unknown;
 };
 
-export type WorkflowStepDirective = {
-  id: string;
-  attempt: number;
-  skillPath: string;
-  checkPaths: string[];
-};
+export type { WorkflowStepDirective } from "./run-state.js";
 
 export type WorkflowRunStatus =
   | "running"
@@ -67,39 +79,6 @@ export type CancelWorkflowRunOptions = {
   reason: string;
 };
 
-type PersistedRunStatus = Exclude<WorkflowRunStatus, "interrupted">;
-
-type CurrentStep = WorkflowStepDirective & {
-  phase: "in_progress";
-};
-
-type WorkflowRunState = {
-  schemaVersion: 1;
-  runId: string;
-  executionKey: string;
-  workspaceRoot: string;
-  workflowPath: string;
-  workflowName: string;
-  workflowVersion: string;
-  workflowHash: string;
-  inputDigest: string;
-  status: PersistedRunStatus;
-  revision: number;
-  currentStep: CurrentStep | null;
-  attempts: Record<string, number>;
-  evidence: string[];
-  checkExecutions: CheckCommandExecution[];
-  createdAt: string;
-  updatedAt: string;
-  output?: unknown;
-};
-
-type TaskEntry = {
-  id: string;
-  task: unknown;
-  index: number;
-};
-
 type LoadedWorkflow = {
   workflow: Specification.Workflow;
   workflowPath: string;
@@ -122,113 +101,22 @@ function portablePath(rootDir: string, path: string): string {
   return relative(rootDir, path).split("\\").join("/");
 }
 
-function runDirectory(rootDir: string, runId: string): string {
-  if (!/^[a-zA-Z0-9-]+$/u.test(runId)) {
-    throw new Error("Workflow Run ID 非法。");
-  }
-  return join(rootDir, ".harness/runs", runId);
-}
-
-function statePath(rootDir: string, runId: string): string {
-  return join(runDirectory(rootDir, runId), "state.json");
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error;
-}
-
-async function withRuntimeLock<T>(rootDir: string, operation: () => Promise<T>): Promise<T> {
-  const harnessRoot = join(rootDir, ".harness");
-  const lockPath = join(harnessRoot, "runtime.lock");
-  const ownerPath = join(lockPath, "owner.json");
-  await mkdir(harnessRoot, { recursive: true });
-
-  let acquired = false;
-  for (let attempt = 0; attempt < 500; attempt += 1) {
-    try {
-      await mkdir(lockPath);
-      await writeFile(ownerPath, `${JSON.stringify({ pid: process.pid })}\n`, "utf8");
-      acquired = true;
-      break;
-    } catch (error: unknown) {
-      if (!isNodeError(error) || error.code !== "EEXIST") {
-        throw error;
-      }
-      try {
-        const owner = JSON.parse(await readFile(ownerPath, "utf8")) as unknown;
-        const pid = asRecord(owner)?.pid;
-        if (typeof pid === "number" && Number.isInteger(pid)) {
-          let ownerIsAlive = true;
-          try {
-            process.kill(pid, 0);
-          } catch (processError: unknown) {
-            ownerIsAlive = !isNodeError(processError) || processError.code !== "ESRCH";
-          }
-          if (!ownerIsAlive) {
-            await rm(lockPath, { recursive: true, force: true });
-            continue;
-          }
-        }
-      } catch (ownerError: unknown) {
-        if (isNodeError(ownerError) && ownerError.code === "ENOENT") {
-          await delay(10);
-          continue;
-        }
-        if (ownerError instanceof SyntaxError) {
-          await rm(lockPath, { recursive: true, force: true });
-          continue;
-        }
-        throw ownerError;
-      }
-      await delay(10);
-    }
-  }
-  if (!acquired) {
-    throw new Error("Workflow Runtime 正忙，请稍后重试。");
-  }
-
-  try {
-    return await operation();
-  } finally {
-    await rm(lockPath, { recursive: true, force: true });
-  }
-}
-
 async function writeState(rootDir: string, state: WorkflowRunState): Promise<void> {
-  const path = statePath(rootDir, state.runId);
-  await mkdir(dirname(path), { recursive: true });
-  const temporaryPath = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  await rename(temporaryPath, path);
+  await writeRunState(resolveHarnessLayout(rootDir).stateRoot, state.runId, state);
 }
 
 async function readState(rootDir: string, runId: string): Promise<WorkflowRunState> {
-  return JSON.parse(await readFile(statePath(rootDir, runId), "utf8")) as WorkflowRunState;
+  return parseRunState(await readRunState(resolveHarnessLayout(rootDir).stateRoot, runId));
 }
 
 async function readAllStates(rootDir: string): Promise<WorkflowRunState[]> {
-  const runsRoot = join(rootDir, ".harness/runs");
-  let entries: string[];
-  try {
-    entries = await readdir(runsRoot);
-  } catch {
-    return [];
-  }
-  const states: WorkflowRunState[] = [];
-  for (const runId of entries) {
-    try {
-      states.push(await readState(rootDir, runId));
-    } catch {
-      continue;
-    }
-  }
-  return states;
+  return (await readAllRunStates(resolveHarnessLayout(rootDir).stateRoot)).map(parseRunState);
 }
 
 async function loadWorkflow(rootDir: string, workflowPath: string): Promise<LoadedWorkflow> {
   const resolvedPath = resolve(rootDir, workflowPath);
-  if (!isInsideWorkspace(rootDir, resolvedPath)) {
-    throw new Error("Workflow 路径必须位于当前 Worktree 内。");
+  if (!isInsideWorkspace(resolveHarnessLayout(rootDir).workflowsRoot, resolvedPath)) {
+    throw new Error("Workflow 路径必须位于 Harness Root 的 workflows/ 内。");
   }
   const source = await readFile(resolvedPath, "utf8");
   const result = await compileWorkflow({ rootDir, workflowPath: resolvedPath });
@@ -241,13 +129,6 @@ async function loadWorkflow(rootDir: string, workflowPath: string): Promise<Load
     workflowPath: portablePath(rootDir, resolvedPath),
     workflowHash: digest(source),
   };
-}
-
-function taskEntries(workflow: Specification.Workflow): TaskEntry[] {
-  return workflow.do.flatMap((item, index) => {
-    const entry = Object.entries(item)[0];
-    return entry === undefined ? [] : [{ id: entry[0], task: entry[1], index }];
-  });
 }
 
 function getChecks(task: unknown): string[] {
@@ -275,12 +156,13 @@ function directiveFor(rootDir: string, entry: TaskEntry, attempt: number): Workf
     throw new Error(`Step '${entry.id}' 不是可执行的本地 Skill。`);
   }
   const checks = getChecks(entry.task);
+  const layout = resolveHarnessLayout(rootDir);
   return {
     id: entry.id,
     attempt,
-    skillPath: portablePath(rootDir, join(rootDir, "skills", call, "SKILL.md")),
+    skillPath: portablePath(layout.workspaceRoot, join(layout.skillsRoot, call, "SKILL.md")),
     checkPaths: checks.map((check) =>
-      portablePath(rootDir, join(rootDir, "harness/checks", check, "CHECK.md")),
+      portablePath(layout.workspaceRoot, join(layout.checksRoot, check, "CHECK.md")),
     ),
   };
 }
@@ -312,92 +194,73 @@ function responseFromState(
   };
 }
 
-function findTask(entries: TaskEntry[], stepId: string): TaskEntry {
-  const entry = entries.find((candidate) => candidate.id === stepId);
-  if (entry === undefined) {
-    throw new Error(`Workflow 中不存在 Step '${stepId}'。`);
-  }
-  return entry;
-}
-
-function conditionMatches(condition: string, status: StepResultStatus): boolean {
-  const match = /^\.status\s*==\s*["'](passed|needs_changes|blocked)["']$/u.exec(condition);
-  if (match === null) {
-    throw new Error(`Runtime 不支持 switch 条件：${condition}`);
-  }
-  return match[1] === status;
-}
-
-function switchTarget(task: unknown, status: StepResultStatus): string | undefined {
-  const branches = asRecord(task)?.switch;
-  if (!Array.isArray(branches)) {
-    throw new Error("目标 Step 不是 switch。");
-  }
-  let defaultTarget: string | undefined;
-  for (const branchItem of branches) {
-    const branchEntry = Object.entries(asRecord(branchItem) ?? {})[0];
-    if (branchEntry === undefined) {
-      continue;
-    }
-    const branch = asRecord(branchEntry[1]);
-    const when = branch?.when;
-    const then = branch?.then;
-    if (typeof then !== "string") {
-      continue;
-    }
-    if (typeof when === "string" && conditionMatches(when, status)) {
-      return then;
-    }
-    if (when === undefined) {
-      defaultTarget = then;
-    }
-  }
-  return defaultTarget;
-}
-
-function resolveNextStep(
+async function assertWorkflowInput(
+  rootDir: string,
   workflow: Specification.Workflow,
-  currentStepId: string,
-  status: StepResultStatus,
-): TaskEntry | null {
-  const entries = taskEntries(workflow);
-  const current = findTask(entries, currentStepId);
-  const currentTask = asRecord(current.task);
-  let target = currentTask?.then;
-  let nextIndex = current.index + 1;
-
-  if (status === "needs_changes" && target === undefined) {
-    const sequential = entries[nextIndex];
-    if (sequential === undefined || !Array.isArray(asRecord(sequential.task)?.switch)) {
-      return current;
-    }
+  input: unknown,
+): Promise<void> {
+  const diagnostics = await validateWorkflowData({
+    rootDir,
+    workflow,
+    target: "input",
+    data: input,
+  });
+  if (diagnostics.length > 0) {
+    throw new Error(`Workflow input 不符合 JSON Schema：${diagnostics[0]?.message ?? "未知错误"}`);
   }
+}
 
-  for (let hops = 0; hops <= entries.length; hops += 1) {
-    if (target === "end" || target === "exit") {
-      return null;
-    }
-    let candidate: TaskEntry | undefined;
-    if (target === undefined || target === "continue") {
-      candidate = entries[nextIndex];
-    } else if (typeof target === "string") {
-      candidate = entries.find((entry) => entry.id === target);
-    }
-    if (candidate === undefined) {
-      return null;
-    }
-    const candidateTask = asRecord(candidate.task);
-    if (typeof candidateTask?.call === "string") {
-      return candidate;
-    }
-    if (Array.isArray(candidateTask?.switch)) {
-      target = switchTarget(candidate.task, status);
-      nextIndex = candidate.index + 1;
-      continue;
-    }
-    throw new Error(`Step '${candidate.id}' 不是 Runtime 支持的 Task。`);
+function resumeExistingRun(
+  state: WorkflowRunState,
+  loaded: LoadedWorkflow,
+  inputDigest: string,
+  workspaceRoot: string,
+): WorkflowRuntimeResponse {
+  if (
+    state.workflowPath !== loaded.workflowPath ||
+    state.workflowHash !== loaded.workflowHash ||
+    state.inputDigest !== inputDigest ||
+    state.workspaceRoot !== workspaceRoot
+  ) {
+    throw new Error("executionKey 已绑定到不同的 Workflow 或输入。");
   }
-  throw new Error("Workflow Transition 超过最大解析深度。");
+  return responseFromState(state, state.status === "running" ? "interrupted" : state.status);
+}
+
+function firstSkillStep(workflow: Specification.Workflow): TaskEntry {
+  const first = taskEntries(workflow)[0];
+  if (first === undefined || typeof asRecord(first.task)?.call !== "string") {
+    throw new Error("Workflow 起点必须是本地 Skill Step。");
+  }
+  return first;
+}
+
+function createRunState(
+  options: StartWorkflowRunOptions,
+  loaded: LoadedWorkflow,
+  workspaceRoot: string,
+  inputDigest: string,
+): WorkflowRunState {
+  const now = new Date().toISOString();
+  return {
+    schemaVersion: 1,
+    runId: randomUUID(),
+    executionKey: options.executionKey,
+    workspaceRoot,
+    workflowPath: loaded.workflowPath,
+    workflowName: loaded.workflow.document.name,
+    workflowVersion: loaded.workflow.document.version,
+    workflowHash: loaded.workflowHash,
+    inputDigest,
+    status: "running",
+    revision: 1,
+    currentStep: null,
+    attempts: {},
+    evidence: [],
+    checkExecutions: [],
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 function startStep(
@@ -457,79 +320,128 @@ async function startWorkflowRunUnlocked(
   options: StartWorkflowRunOptions,
 ): Promise<WorkflowRuntimeResponse> {
   const rootDir = resolve(options.rootDir);
-  const workspaceRoot = resolve(options.workspaceRoot ?? rootDir);
+  const workspaceRoot = resolve(
+    options.workspaceRoot ?? resolveHarnessLayout(rootDir).workspaceRoot,
+  );
   if (options.executionKey.trim().length === 0) {
     throw new Error("executionKey 不能为空。");
   }
   const loaded = await loadWorkflow(rootDir, options.workflowPath);
-  const inputDiagnostics = await validateWorkflowData({
-    rootDir,
-    workflow: loaded.workflow,
-    target: "input",
-    data: options.input,
-  });
-  if (inputDiagnostics.length > 0) {
-    throw new Error(`Workflow input 不符合 JSON Schema：${inputDiagnostics[0]?.message ?? "未知错误"}`);
-  }
+  await assertWorkflowInput(rootDir, loaded.workflow, options.input);
   const inputDigest = digest(JSON.stringify(options.input));
   const existingStates = await readAllStates(rootDir);
   const sameExecution = existingStates
     .filter((state) => state.executionKey === options.executionKey)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   if (sameExecution !== undefined) {
-    if (
-      sameExecution.workflowPath !== loaded.workflowPath ||
-      sameExecution.workflowHash !== loaded.workflowHash ||
-      sameExecution.inputDigest !== inputDigest ||
-      sameExecution.workspaceRoot !== workspaceRoot
-    ) {
-      throw new Error("executionKey 已绑定到不同的 Workflow 或输入。");
-    }
-    return responseFromState(
-      sameExecution,
-      sameExecution.status === "running" ? "interrupted" : sameExecution.status,
-    );
+    return resumeExistingRun(sameExecution, loaded, inputDigest, workspaceRoot);
   }
   if (existingStates.some((state) => state.status === "running")) {
     throw new Error("当前 Worktree 已存在运行中的 Workflow。");
   }
 
-  const first = taskEntries(loaded.workflow)[0];
-  if (first === undefined || typeof asRecord(first.task)?.call !== "string") {
-    throw new Error("Workflow 起点必须是本地 Skill Step。");
-  }
-
-  const now = new Date().toISOString();
-  const runId = randomUUID();
-  const baseState: WorkflowRunState = {
-    schemaVersion: 1,
-    runId,
-    executionKey: options.executionKey,
-    workspaceRoot,
-    workflowPath: loaded.workflowPath,
-    workflowName: loaded.workflow.document.name,
-    workflowVersion: loaded.workflow.document.version,
-    workflowHash: loaded.workflowHash,
-    inputDigest,
-    status: "running",
-    revision: 1,
-    currentStep: null,
-    attempts: {},
-    evidence: [],
-    checkExecutions: [],
-    createdAt: now,
-    updatedAt: now,
-  };
-  const started = startStep(rootDir, baseState, loaded.workflow, first);
+  const baseState = createRunState(options, loaded, workspaceRoot, inputDigest);
+  const started = startStep(rootDir, baseState, loaded.workflow, firstSkillStep(loaded.workflow));
   await writeState(rootDir, started.state);
   return started.response;
+}
+
+type CheckOutcome = {
+  effectiveStatus: StepResultStatus;
+  checkExecutions: CheckCommandExecution[];
+  failedResponse?: WorkflowRuntimeResponse;
+};
+
+async function runStepChecks(
+  rootDir: string,
+  state: WorkflowRunState,
+  result: StepResult,
+  checkIds: string[],
+): Promise<CheckOutcome> {
+  if (result.status !== "passed" || checkIds.length === 0) {
+    return { effectiveStatus: result.status, checkExecutions: [] };
+  }
+  try {
+    const checkExecutions = await executeDeterministicChecks({
+      rootDir,
+      workspaceRoot: state.workspaceRoot,
+      checkIds,
+    });
+    return {
+      effectiveStatus: checkExecutions.some((execution) => execution.exitCode !== 0)
+        ? "needs_changes"
+        : result.status,
+      checkExecutions,
+    };
+  } catch (error: unknown) {
+    const failedState: WorkflowRunState = {
+      ...state,
+      status: "failed",
+      revision: state.revision + 1,
+      currentStep: null,
+      evidence: [...state.evidence, error instanceof Error ? error.message : String(error)],
+      updatedAt: new Date().toISOString(),
+    };
+    await writeState(rootDir, failedState);
+    return {
+      effectiveStatus: "blocked",
+      checkExecutions: [],
+      failedResponse: responseFromState(failedState),
+    };
+  }
+}
+
+function progressedState(
+  state: WorkflowRunState,
+  result: StepResult,
+  checkExecutions: CheckCommandExecution[],
+): WorkflowRunState {
+  const commandEvidence = checkExecutions.map(
+    (execution) =>
+      `${execution.checkId}: ${execution.command} ${execution.args.join(" ")} -> ${String(execution.exitCode)}`,
+  );
+  return {
+    ...state,
+    revision: state.revision + 1,
+    currentStep: null,
+    evidence: [...state.evidence, ...result.evidence, ...commandEvidence],
+    checkExecutions: [...state.checkExecutions, ...checkExecutions],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function completeRun(
+  rootDir: string,
+  workflow: Specification.Workflow,
+  state: WorkflowRunState,
+  result: StepResult,
+  checkExecutions: CheckCommandExecution[],
+): Promise<WorkflowRuntimeResponse> {
+  const diagnostics = await validateWorkflowData({
+    rootDir,
+    workflow,
+    target: "output",
+    data: result.data,
+  });
+  if (diagnostics.length > 0) {
+    throw new Error(`Workflow output 不符合 JSON Schema：${diagnostics[0]?.message ?? "未知错误"}`);
+  }
+  const completedState: WorkflowRunState = {
+    ...state,
+    status: "completed",
+    ...(result.data === undefined ? {} : { output: result.data }),
+  };
+  await writeState(rootDir, completedState);
+  return responseFromState(completedState, "completed", checkExecutions);
 }
 
 export async function startWorkflowRun(
   options: StartWorkflowRunOptions,
 ): Promise<WorkflowRuntimeResponse> {
   const rootDir = resolve(options.rootDir);
-  return withRuntimeLock(rootDir, () => startWorkflowRunUnlocked(options));
+  return withRuntimeLock(resolveHarnessLayout(rootDir).stateRoot, () =>
+    startWorkflowRunUnlocked(options),
+  );
 }
 
 async function continueWorkflowRunUnlocked(
@@ -547,50 +459,10 @@ async function continueWorkflowRunUnlocked(
     throw new Error("Workflow 文件已在运行期间改变，当前 Run 已停止推进。");
   }
   const currentTask = findTask(taskEntries(loaded.workflow), options.result.stepId);
-  const checkIds = getChecks(currentTask.task);
-  let checkExecutions: CheckCommandExecution[] = [];
-  let effectiveStatus = options.result.status;
-  if (effectiveStatus === "passed" && checkIds.length > 0) {
-    try {
-      checkExecutions = await executeDeterministicChecks({
-        rootDir,
-        workspaceRoot: state.workspaceRoot,
-        checkIds,
-      });
-    } catch (error: unknown) {
-      const failedState: WorkflowRunState = {
-        ...state,
-        status: "failed",
-        revision: state.revision + 1,
-        currentStep: null,
-        evidence: [
-          ...state.evidence,
-          error instanceof Error ? error.message : String(error),
-        ],
-        updatedAt: new Date().toISOString(),
-      };
-      await writeState(rootDir, failedState);
-      return responseFromState(failedState);
-    }
-    if (checkExecutions.some((execution) => execution.exitCode !== 0)) {
-      effectiveStatus = "needs_changes";
-    }
-  }
-
-  const commandEvidence = checkExecutions.map(
-    (execution) =>
-      `${execution.checkId}: ${execution.command} ${execution.args.join(" ")} -> ${String(execution.exitCode)}`,
-  );
-  const nextRevision = state.revision + 1;
-  const evidence = [...state.evidence, ...options.result.evidence, ...commandEvidence];
-  const baseState: WorkflowRunState = {
-    ...state,
-    revision: nextRevision,
-    currentStep: null,
-    evidence,
-    checkExecutions: [...state.checkExecutions, ...checkExecutions],
-    updatedAt: new Date().toISOString(),
-  };
+  const outcome = await runStepChecks(rootDir, state, options.result, getChecks(currentTask.task));
+  if (outcome.failedResponse !== undefined) return outcome.failedResponse;
+  const { checkExecutions, effectiveStatus } = outcome;
+  const baseState = progressedState(state, options.result, checkExecutions);
 
   if (effectiveStatus === "blocked") {
     const blockedState: WorkflowRunState = { ...baseState, status: "blocked" };
@@ -600,22 +472,7 @@ async function continueWorkflowRunUnlocked(
 
   const nextStep = resolveNextStep(loaded.workflow, options.result.stepId, effectiveStatus);
   if (nextStep === null) {
-    const outputDiagnostics = await validateWorkflowData({
-      rootDir,
-      workflow: loaded.workflow,
-      target: "output",
-      data: options.result.data,
-    });
-    if (outputDiagnostics.length > 0) {
-      throw new Error(`Workflow output 不符合 JSON Schema：${outputDiagnostics[0]?.message ?? "未知错误"}`);
-    }
-    const completedState: WorkflowRunState = {
-      ...baseState,
-      status: "completed",
-      ...(options.result.data === undefined ? {} : { output: options.result.data }),
-    };
-    await writeState(rootDir, completedState);
-    return responseFromState(completedState, "completed", checkExecutions);
+    return completeRun(rootDir, loaded.workflow, baseState, options.result, checkExecutions);
   }
 
   const advanced = startStep(rootDir, baseState, loaded.workflow, nextStep);
@@ -630,7 +487,9 @@ export async function continueWorkflowRun(
   options: ContinueWorkflowRunOptions,
 ): Promise<WorkflowRuntimeResponse> {
   const rootDir = resolve(options.rootDir);
-  return withRuntimeLock(rootDir, () => continueWorkflowRunUnlocked(options));
+  return withRuntimeLock(resolveHarnessLayout(rootDir).stateRoot, () =>
+    continueWorkflowRunUnlocked(options),
+  );
 }
 
 async function cancelWorkflowRunUnlocked(
@@ -657,5 +516,7 @@ export async function cancelWorkflowRun(
   options: CancelWorkflowRunOptions,
 ): Promise<WorkflowRuntimeResponse> {
   const rootDir = resolve(options.rootDir);
-  return withRuntimeLock(rootDir, () => cancelWorkflowRunUnlocked(options));
+  return withRuntimeLock(resolveHarnessLayout(rootDir).stateRoot, () =>
+    cancelWorkflowRunUnlocked(options),
+  );
 }

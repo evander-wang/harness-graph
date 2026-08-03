@@ -207,6 +207,20 @@ describe("CLI", () => {
     expect(output.some((message) => message.includes("flowchart"))).toBe(true);
   });
 
+  test("validate 拒绝 Harness Root 之外的 Workflow 路径", async () => {
+    const rootDir = await createProject();
+    const output: string[] = [];
+
+    const code = await main(["validate", "../outside/workflow.yaml"], {
+      cwd: rootDir,
+      stdout: (message) => output.push(message),
+      stderr: (message) => output.push(message),
+    });
+
+    expect(code).toBe(2);
+    expect(output).toContain("Workflow 路径必须位于 Harness Root 的 workflows/ 内。");
+  });
+
   test("diagram 展开前置 Workflow", async () => {
     const rootDir = await createProject();
     await addWorkflowWithPrerequisite(rootDir);

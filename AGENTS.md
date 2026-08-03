@@ -34,6 +34,8 @@ Mermaid 和其他生成内容只用于展示，禁止手工维护为第二份流
 
 `harness/generated/workflow-catalog.json` 是路由索引，不是流程事实源。`npm run workflow:sync` 会由全部 Workflow 覆盖生成它；`npm run workflow:activate` 则读取人工维护的 `harness/workflow-activation.yaml`，只写入指定入口及其前置依赖。修改已激活 Workflow 或激活声明后必须执行 `npm run workflow:activate`。
 
+安装到业务项目后，以上发布资产分别位于 `harness-next/workflows/`、`harness-next/models/`、`harness-next/checks/` 和 `harness-next/skills/`；Catalog 和激活声明也位于该 Harness Root。禁止在安装器中维护第二份事实源。
+
 ## Workflow 约束
 
 - `document.dsl` 固定使用当前 SDK 支持的 `1.0.3`。
@@ -60,7 +62,7 @@ Mermaid 和其他生成内容只用于展示，禁止手工维护为第二份流
 - 一个 Harness Worktree 同时只允许一个 `running` Run；Run 固化目标项目目录。
 - Run 固定 Workflow Version 和 Source Hash；Workflow 运行期间发生变化时禁止继续推进。
 - Step Result 必须匹配 `runId`、`revision` 和当前 `stepId`，并包含非空 `evidence`。
-- `.harness/` 只保存本地运行状态，禁止提交 Git，禁止写入 Secret 和完整 Prompt。
+- 引擎仓库的 `.harness/` 和安装项目的 `harness-next/.state/` 只保存本地运行状态，禁止提交 Git，禁止写入 Secret 和完整 Prompt。
 - 第一版不提供宿主 Hook；Agent 或宿主完全重启后，不承诺主动恢复，重新加载 Router 后可以恢复。
 
 ## Model 和 Schema
@@ -80,6 +82,7 @@ Mermaid 和其他生成内容只用于展示，禁止手工维护为第二份流
 - Step 执行方式变化：修改对应 `SKILL.md`。
 - 编译和校验变化：先写失败测试，再修改 `src/workflow/`。
 - 命令行为变化：先写失败测试，再修改 `src/cli.ts`。
+- 安装、preflight 或 Root 推导变化：先写失败测试，再修改 `src/installation/`。
 
 禁止在多个文件复制同一条规则。
 

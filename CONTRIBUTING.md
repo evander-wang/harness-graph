@@ -40,6 +40,9 @@ npm run doctor
 | 包管理器识别和 Node.js 项目门禁 | `src/node-project/` |
 | 标准解析和本地校验 | `src/workflow/compiler.ts` |
 | CLI | `src/cli.ts` |
+| 项目本地安装、preflight 和 Root 推导 | `src/installation/` |
+
+发布资产仍从本仓库的 `harness/` 和 `skills/` 读取；安装器把它们复制到业务项目的 `harness-next/`，不能在安装代码中维护第二份 Workflow、Model、Check 或 Skill 清单。`workflow-activation.yaml` 中的入口路径相对 Harness Root，使用 `workflows/<name>/workflow.yaml`。
 
 Open Workflow 的标准 Schema 由 `@openworkflowspec/sdk` 提供，禁止复制后手工维护。
 
@@ -49,6 +52,7 @@ Open Workflow 的标准 Schema 由 `@openworkflowspec/sdk` 提供，禁止复制
 - 所有 TypeScript 必须通过严格类型检查。
 - 不使用 `any` 绕过模型问题。
 - 不在多个文件复制同一条流程规则。
+- 安装行为变化先在 `tests/install.test.ts` 增加失败测试；安装布局的 Compiler、Runtime 和 Check 行为在 `tests/installed-layout.test.ts` 验证。
 - 生成的 Mermaid 和 SVG 只用于展示，不能反向成为事实源。
 
 ## 完成验证

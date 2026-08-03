@@ -4,6 +4,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { load } from "js-yaml";
 
 import { compileWorkflow } from "./compiler.js";
+import { resolveHarnessLayout } from "./paths.js";
 
 export type WorkflowRouting = {
   aliases: string[];
@@ -44,8 +45,6 @@ export type ActivateWorkflowCatalogOptions = {
   rootDir: string;
   check?: boolean;
 };
-
-const ACTIVATION_PATH = "harness/workflow-activation.yaml";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
@@ -157,7 +156,7 @@ function validatePrerequisites(workflows: readonly WorkflowCatalogEntry[]): void
 
 export async function buildWorkflowCatalog(rootDir: string): Promise<WorkflowCatalog> {
   const resolvedRoot = resolve(rootDir);
-  const workflowsRoot = join(resolvedRoot, "harness/workflows");
+  const workflowsRoot = resolveHarnessLayout(resolvedRoot).workflowsRoot;
   const workflowPaths = await findWorkflowPaths(workflowsRoot);
   const workflows: WorkflowCatalogEntry[] = [];
 
@@ -250,15 +249,21 @@ function resolveSelectedWorkflows(
 }
 
 async function readActivationPaths(rootDir: string): Promise<string[]> {
-  const source = await readFile(join(rootDir, ACTIVATION_PATH), "utf8");
+  const layout = resolveHarnessLayout(rootDir);
+  const source = await readFile(layout.activationPath, "utf8");
   const document = asRecord(load(source));
   if (document?.version !== 1) {
     throw new Error("激活声明的 version 必须为 1。");
   }
   const entryWorkflowPaths = stringList(document.entryWorkflowPaths, "entryWorkflowPaths");
   return entryWorkflowPaths.map((path) => {
-    const resolvedPath = resolve(rootDir, path);
-    const workflowsRoot = resolve(rootDir, "harness/workflows");
+    const normalizedPath = path.replace(/^harness\//u, "");
+    const resolvedPath = layout.workspaceRoot === layout.harnessRoot
+      ? normalizedPath.startsWith("workflows/")
+        ? resolve(layout.workflowsRoot, normalizedPath.slice("workflows/".length))
+        : resolve(rootDir, path)
+      : resolve(layout.harnessRoot, normalizedPath);
+    const workflowsRoot = layout.workflowsRoot;
     const relativePath = relative(workflowsRoot, resolvedPath);
     if (
       relativePath === "" ||
@@ -266,7 +271,7 @@ async function readActivationPaths(rootDir: string): Promise<string[]> {
       relativePath.startsWith(`..${sep}`) ||
       !relativePath.endsWith(`${sep}workflow.yaml`)
     ) {
-      throw new Error(`激活声明中的 Workflow 路径必须位于 harness/workflows/：${path}`);
+      throw new Error(`激活声明中的 Workflow 路径必须位于 workflows/：${path}`);
     }
     return portablePath(rootDir, resolvedPath);
   });
@@ -278,7 +283,7 @@ async function persistWorkflowCatalog(
   check: boolean,
   refreshCommand: string,
 ): Promise<SyncWorkflowCatalogResult> {
-  const catalogPath = join(rootDir, "harness/generated/workflow-catalog.json");
+  const catalogPath = resolveHarnessLayout(rootDir).catalogPath;
   const serialized = `${JSON.stringify(catalog, null, 2)}\n`;
   let current: string | null = null;
   try {
@@ -309,7 +314,10 @@ export async function syncWorkflowCatalog(
 ): Promise<SyncWorkflowCatalogResult> {
   const rootDir = resolve(options.rootDir);
   const catalog = await buildWorkflowCatalog(rootDir);
-  return persistWorkflowCatalog(rootDir, catalog, options.check === true, "npm run workflow:sync");
+  const command = resolveHarnessLayout(rootDir).workspaceRoot === rootDir
+    ? "npm run workflow:sync"
+    : "./harness-next/bin/harness-next sync";
+  return persistWorkflowCatalog(rootDir, catalog, options.check === true, command);
 }
 
 export async function activateWorkflowCatalog(
@@ -321,11 +329,14 @@ export async function activateWorkflowCatalog(
     entryWorkflowPaths,
     await buildWorkflowCatalog(rootDir),
   );
+  const command = resolveHarnessLayout(rootDir).workspaceRoot === rootDir
+    ? "npm run workflow:activate"
+    : "./harness-next/bin/harness-next activate";
   return persistWorkflowCatalog(
     rootDir,
     catalog,
     options.check === true,
-    "npm run workflow:activate",
+    command,
   );
 }
 
@@ -333,12 +344,12 @@ export async function checkWorkflowCatalog(options: {
   rootDir: string;
 }): Promise<SyncWorkflowCatalogResult> {
   const rootDir = resolve(options.rootDir);
-  const catalogPath = join(rootDir, "harness/generated/workflow-catalog.json");
+  const catalogPath = resolveHarnessLayout(rootDir).catalogPath;
   let current: Record<string, unknown> | null;
   try {
     current = asRecord(JSON.parse(await readFile(catalogPath, "utf8")) as unknown);
   } catch {
-    throw new Error("Workflow Catalog 不存在或无法解析，请先执行 npm run workflow:activate。");
+    throw new Error("Workflow Catalog 不存在或无法解析，请先执行 activate。");
   }
   if (current?.mode === "all") {
     return syncWorkflowCatalog({ rootDir, check: true });
@@ -346,5 +357,5 @@ export async function checkWorkflowCatalog(options: {
   if (current?.mode === "selected") {
     return activateWorkflowCatalog({ rootDir, check: true });
   }
-  throw new Error("Workflow Catalog 的 mode 无效，请先执行 npm run workflow:activate。");
+  throw new Error("Workflow Catalog 的 mode 无效，请先执行 activate。");
 }

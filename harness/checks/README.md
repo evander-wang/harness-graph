@@ -27,9 +27,11 @@ data: {} # 可选业务数据
 ---
 commands:
   - command: node
-    args: [dist/cli.js, project-check]
+    args: [runtime/dist/cli.js, project-check]
+    cwd: harness
   - command: git
     args: [diff, --check]
+    cwd: workspace
 ---
 ```
 
