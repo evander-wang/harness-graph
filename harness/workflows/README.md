@@ -32,8 +32,23 @@ metadata:
 
 `harness/workflow-activation.yaml` 由人维护当前 Router 的入口 Workflow 路径。新增或修改已激活的 Workflow 后执行 `npm run workflow:activate`；它会把入口及其前置依赖写入 Catalog。`npm run workflow:sync` 仅用于由全部 Workflow 覆盖生成全量 Catalog。Catalog 只用于路由，禁止手工编辑。
 
+## 修改类 Workflow 组合
+
+会修改代码、配置或其他项目文件的入口 Workflow 必须组合通用执行协议，并按需组合语言或领域 Standards：
+
+```yaml
+metadata:
+  harness:
+    prerequisites:
+      - change-execution-policy
+      - node-typescript-standards
+```
+
+`change-execution-policy` 是非入口前置 Workflow，负责加载跨语言修改协议；语言 Standards 只维护该语言的开发规范。入口 Workflow 负责路由和 Transition，不复制两类前置规则。
+
 参考：
 
+- `change-execution-policy/workflow.yaml`：所有修改类 Workflow 共享的执行协议；
 - `node-typescript-standards/workflow.yaml`：Node.js TypeScript 开发的单节点前置规范加载流程；
 - `node-typescript-development/workflow.yaml`：已有工程中的业务代码变更；
 - `node-project-configuration/workflow.yaml`：初始化或规范化当前 Node.js TypeScript 项目。

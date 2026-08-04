@@ -2,7 +2,7 @@ document:
   dsl: "1.0.3"
   namespace: harness-next
   name: node-typescript-development
-  version: "0.4.0"
+  version: "0.5.0"
   title: Node.js TypeScript 开发
   summary: 分析、实现、验证、审查并交付当前工作区的 Node.js TypeScript 变更。
   metadata:
@@ -21,6 +21,7 @@ document:
       execution:
         maxStepAttempts: 3
       prerequisites:
+        - change-execution-policy
         - node-typescript-standards
 
 input:

@@ -2,7 +2,7 @@ document:
   dsl: "1.0.3"
   namespace: harness-next
   name: node-project-configuration
-  version: "0.1.0"
+  version: "0.2.0"
   title: Node.js TypeScript 项目配置
   summary: 初始化新的 Node.js TypeScript 项目，或规范化当前已有项目的工程配置。
   metadata:
@@ -23,6 +23,8 @@ document:
           - 只升级某一个普通业务依赖
       execution:
         maxStepAttempts: 3
+      prerequisites:
+        - change-execution-policy
 
 input:
   schema:
@@ -35,6 +37,7 @@ do:
       metadata:
         harness:
           checks:
+            - change-plan-ready
             - node-project-plan-ready
 
   - decide-plan:
@@ -68,6 +71,7 @@ do:
       metadata:
         harness:
           checks:
+            - change-review-result
             - node-project-review-result
 
   - decide-review:

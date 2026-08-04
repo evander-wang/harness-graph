@@ -73,6 +73,22 @@ describe("installHarnessProject", () => {
       maintainedEntries: [],
     });
     await expect(access(join(workspaceRoot, "harness-next/workflows/node-typescript-development/workflow.yaml"))).resolves.toBeUndefined();
+    await expect(
+      access(join(workspaceRoot, "harness-next/workflows/change-execution-policy/workflow.yaml")),
+    ).resolves.toBeUndefined();
+    await expect(
+      access(join(workspaceRoot, "harness-next/skills/load-change-execution-policy/SKILL.md")),
+    ).resolves.toBeUndefined();
+    const installedCatalog = JSON.parse(
+      await readFile(
+        join(workspaceRoot, "harness-next/generated/workflow-catalog.json"),
+        "utf8",
+      ),
+    ) as { entryWorkflows?: string[]; workflows?: Array<{ name?: string }> };
+    expect(installedCatalog.entryWorkflows).not.toContain("change-execution-policy");
+    expect(installedCatalog.workflows?.map((workflow) => workflow.name)).toContain(
+      "change-execution-policy",
+    );
     await expect(access(join(workspaceRoot, "harness-next/models/node-change-request.schema.json"))).resolves.toBeUndefined();
     await expect(access(join(workspaceRoot, "harness-next/runtime/dist/cli.js"))).resolves.toBeUndefined();
     await expect(access(join(workspaceRoot, "harness-next/runtime/package-lock.json"))).resolves.toBeUndefined();
@@ -568,6 +584,9 @@ describe("installHarnessProject", () => {
     expect(router).toContain("./harness-next/bin/harness-next preflight");
     expect(router).toContain("./harness-next/bin/harness-next start");
     expect(router).toContain("harness-next/.state/tmp/");
+    expect(router).toContain("不写 Step Result，也不执行 `continue`");
+    expect(router).toContain("复用相同的 `executionKey`");
+    expect(router).toContain("无法通过用户回答继续时才提交 `blocked`");
     expect(router).not.toContain("npm run workflow:");
     expect(qualityGate).toContain("runtime/dist/cli.js");
     expect(qualityGate).not.toContain("args: [dist/cli.js");
