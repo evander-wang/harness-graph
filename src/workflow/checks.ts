@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { load } from "js-yaml";
 
+import { resolveHarnessLayout } from "./paths.js";
+
 export type CheckCommand = {
   command: string;
   args: string[];
@@ -83,7 +85,7 @@ function parseCommands(value: unknown, checkId: string): CheckCommand[] {
 export async function loadCheckDefinition(
   options: LoadCheckDefinitionOptions,
 ): Promise<CheckDefinition> {
-  const checkPath = join(resolve(options.rootDir), "harness/checks", options.checkId, "CHECK.md");
+  const checkPath = join(resolveHarnessLayout(options.rootDir).checksRoot, options.checkId, "CHECK.md");
   const source = await readFile(checkPath, "utf8");
   const frontMatter = asRecord(parseFrontMatter(source));
   return {
@@ -138,16 +140,35 @@ async function executeCommand(
   };
 }
 
+function commandForLayout(installed: boolean, definition: CheckCommand): CheckCommand {
+  if (
+    !installed &&
+    definition.command === "node" &&
+    definition.args[0] === "runtime/dist/cli.js"
+  ) {
+    return { ...definition, args: ["dist/cli.js", ...definition.args.slice(1)] };
+  }
+  return definition;
+}
+
 export async function executeDeterministicChecks(
   options: ExecuteDeterministicChecksOptions,
 ): Promise<CheckCommandExecution[]> {
   const rootDir = resolve(options.rootDir);
-  const workspaceRoot = resolve(options.workspaceRoot ?? rootDir);
+  const layout = resolveHarnessLayout(rootDir);
+  const workspaceRoot = resolve(options.workspaceRoot ?? layout.workspaceRoot);
   const results: CheckCommandExecution[] = [];
   for (const checkId of options.checkIds) {
     const definition = await loadCheckDefinition({ rootDir, checkId });
     for (const command of definition.commands) {
-      results.push(await executeCommand(rootDir, workspaceRoot, checkId, command));
+      results.push(
+        await executeCommand(
+          layout.harnessRoot,
+          workspaceRoot,
+          checkId,
+          commandForLayout(layout.installed, command),
+        ),
+      );
     }
   }
   return results;

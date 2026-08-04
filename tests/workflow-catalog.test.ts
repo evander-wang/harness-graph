@@ -64,6 +64,25 @@ entryWorkflowPaths:\n${entryWorkflowPaths.map((path) => `  - ${path}`).join("\n"
 }
 
 describe("syncWorkflowCatalog", () => {
+  test("安装布局从扁平资产目录生成 Catalog", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-installed-catalog-"));
+    const harnessRoot = join(workspaceRoot, "harness-next");
+    await mkdir(join(harnessRoot, "workflows/example"), { recursive: true });
+    await mkdir(join(harnessRoot, "skills/run-example"), { recursive: true });
+    await writeFile(join(harnessRoot, "skills/run-example/SKILL.md"), "# 执行\n");
+    await writeFile(
+      join(harnessRoot, "workflows/example/workflow.yaml"),
+      `document:\n  dsl: "1.0.3"\n  namespace: harness-next\n  name: installed-example\n  version: "1.0.0"\n  metadata:\n    harness:\n      routing:\n        aliases: []\n        when: [开发]\n        notWhen: []\ndo:\n  - run-example:\n      call: run-example\n      then: end\n`,
+    );
+
+    const result = await syncWorkflowCatalog({ rootDir: harnessRoot });
+
+    expect(result.catalog.workflows).toEqual([
+      expect.objectContaining({ name: "installed-example", path: "workflows/example/workflow.yaml" }),
+    ]);
+    await expect(readFile(join(harnessRoot, "generated/workflow-catalog.json"), "utf8")).resolves.toContain("installed-example");
+  });
+
   test("Node.js TypeScript 开发 Workflow 声明单节点标准 Workflow 为前置依赖", async () => {
     const rootDir = resolve(import.meta.dirname, "..");
     const development = await compileWorkflow({
@@ -106,7 +125,9 @@ describe("syncWorkflowCatalog", () => {
       join(rootDir, "harness/checks/node-quality-gate/CHECK.md"),
       "utf8",
     );
-    expect(qualityGate).toContain("args: [dist/cli.js, node-policy-check, --changed]");
+    expect(qualityGate).toContain(
+      "args: [runtime/dist/cli.js, node-policy-check, --changed]",
+    );
   });
 
   test("拒绝不存在的前置 Workflow", async () => {

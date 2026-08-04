@@ -1,7 +1,7 @@
 ---
 commands:
   - command: node
-    args: [dist/cli.js, project-check]
+    args: [runtime/dist/cli.js, project-check]
     cwd: harness
   - command: git
     args: [diff, --check]

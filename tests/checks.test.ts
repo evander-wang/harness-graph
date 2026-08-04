@@ -118,4 +118,34 @@ commands:
       exitCode: 0,
     });
   });
+
+  test("源码布局将安装态 Runtime 路径映射到开发构建产物", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "harness-check-root-"));
+    await mkdir(join(rootDir, "dist"), { recursive: true });
+    await writeFile(join(rootDir, "dist/cli.js"), "process.exit(0);\n");
+    await writeCheck(
+      rootDir,
+      "local-runtime-command",
+      `---
+commands:
+  - command: node
+    args: [runtime/dist/cli.js]
+    cwd: harness
+---
+# Local Runtime Command
+`,
+    );
+
+    const results = await executeDeterministicChecks({
+      rootDir,
+      checkIds: ["local-runtime-command"],
+    });
+
+    expect(results[0]).toMatchObject({
+      command: "node",
+      args: ["dist/cli.js"],
+      cwd: "harness",
+      exitCode: 0,
+    });
+  });
 });

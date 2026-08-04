@@ -33,13 +33,20 @@ npm run doctor
 | Workflow 输入输出 | `harness/models/` |
 | Step 和 Transition | 对应的 `workflow.yaml` |
 | Step 执行方法 | `skills/<skill-id>/SKILL.md` |
+| 项目 Skill 规范入口 | `skills/harness-next/SKILL.md`；宿主 Adapter 由安装器生成 |
 | Step 验收规则 | `harness/checks/<check-id>/CHECK.md` |
 | Workflow 路由索引 | 维护 `harness/workflow-activation.yaml`，执行 `npm run workflow:activate`，禁止手工修改 Catalog |
 | 本地运行状态和跳转 | `src/workflow/runtime.ts` |
+| Workflow 执行摘要 | `src/workflow/report.ts`；执行记录由 `src/workflow/runtime.ts` 写入 |
 | Check 命令执行 | `src/workflow/checks.ts` |
 | 包管理器识别和 Node.js 项目门禁 | `src/node-project/` |
 | 标准解析和本地校验 | `src/workflow/compiler.ts` |
 | CLI | `src/cli.ts` |
+| 项目本地安装、preflight 和 Root 推导 | `src/installation/` |
+
+发布资产仍从本仓库的 `harness/` 和 `skills/` 读取；安装器把它们复制到业务项目的 `harness-next/`，不能在安装代码中维护第二份 Workflow、Model、Check 或 Skill 清单。`workflow-activation.yaml` 中的入口路径相对 Harness Root，使用 `workflows/<name>/workflow.yaml`。
+
+Runtime 发布包由 `src/installation/runtime-package.ts` 投影：只保留运行所需生产依赖，并在安装时生成专用生产 Lockfile；`src/installation/runtime.ts` 负责 Runtime 内容哈希。Runtime 版本或实现变化时，必须补充安装测试覆盖首次安装、重复 install、运行中 Run 阻断和失败回滚。执行 trace 和报告必须统一从 Runtime/Report 模块生成，不能在各个 Workflow 或 Step Skill 中重复实现。
 
 Open Workflow 的标准 Schema 由 `@openworkflowspec/sdk` 提供，禁止复制后手工维护。
 
@@ -49,6 +56,7 @@ Open Workflow 的标准 Schema 由 `@openworkflowspec/sdk` 提供，禁止复制
 - 所有 TypeScript 必须通过严格类型检查。
 - 不使用 `any` 绕过模型问题。
 - 不在多个文件复制同一条流程规则。
+- 安装行为变化先在 `tests/install.test.ts` 增加失败测试；安装布局的 Compiler、Runtime 和 Check 行为在 `tests/installed-layout.test.ts` 验证。
 - 生成的 Mermaid 和 SVG 只用于展示，不能反向成为事实源。
 
 ## 完成验证

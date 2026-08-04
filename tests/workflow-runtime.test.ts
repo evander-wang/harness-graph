@@ -170,6 +170,15 @@ describe("Local Workflow Runtime", () => {
     });
     expect(state.workflowHash).toMatch(/^sha256:[a-f0-9]{64}$/u);
     expect(state).not.toHaveProperty("input");
+    const executionTrace = state.executionTrace as Array<Record<string, unknown>>;
+    expect(executionTrace).toHaveLength(1);
+    expect(executionTrace[0]).toMatchObject({
+      type: "step_started",
+      stepId: "inspect-change",
+      attempt: 1,
+      revision: 1,
+    });
+    expect(typeof executionTrace[0]?.at).toBe("string");
   });
 
   test("Runtime 将确定性 Check 定向到目标项目目录", async () => {
@@ -488,5 +497,19 @@ commands:
       revision: 5,
       output: { status: "done" },
     });
+    const state = JSON.parse(
+      await readFile(join(project.rootDir, ".harness/runs", completed.runId, "state.json"), "utf8"),
+    ) as { executionTrace?: { type: string; stepId?: string; toStepId?: string | null }[] };
+    expect(state.executionTrace?.filter((entry) => entry.type === "step_started").map((entry) => entry.stepId)).toEqual([
+      "inspect-change",
+      "implement-change",
+      "verify-change",
+      "deliver-change",
+    ]);
+    expect(state.executionTrace?.filter((entry) => entry.type === "transition").at(-1)).toMatchObject({
+      fromStepId: "deliver-change",
+      toStepId: null,
+    });
+    expect(state.executionTrace?.at(-1)?.type).toBe("workflow_completed");
   });
 });

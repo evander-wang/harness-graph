@@ -1,12 +1,21 @@
 #!/usr/bin/env node
 
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import type { FlatGraph } from "@openworkflowspec/sdk";
 
 import { checkNodeProject } from "./node-project/project-check.js";
 import { checkNodeTypeScriptPolicy } from "./node-project/node-typescript-policy.js";
+import {
+  checkHarnessProject,
+  installHarnessProject,
+  resolveHarnessPaths,
+  type HarnessPaths,
+} from "./installation/installer.js";
 import { compileWorkflow } from "./workflow/compiler.js";
 import {
   activateWorkflowCatalog,
@@ -20,6 +29,10 @@ import {
   startWorkflowRun,
   type StepResult,
 } from "./workflow/runtime.js";
+import {
+  loadWorkflowExecutionReport,
+  renderWorkflowExecutionReport,
+} from "./workflow/report.js";
 import { renderWorkflowSvg } from "./workflow/svg-renderer.js";
 
 export type CliIo = {
@@ -55,8 +68,28 @@ async function exists(path: string): Promise<boolean> {
 function printUsage(io: CliIo): void {
   io.stderr(
     "用法：harness-next " +
-      "<doctor|project-check|node-policy-check|validate|diagram|image|sync|activate|start|continue|cancel> [...args]",
+      "<install|preflight|route|doctor|project-check|node-policy-check|validate|diagram|image|" +
+      "sync|activate|start|continue|cancel|report> [...args]",
   );
+}
+
+function commandPaths(io: CliIo): HarnessPaths {
+  const explicitHarnessRoot = process.env.HARNESS_NEXT_ROOT;
+  if (explicitHarnessRoot !== undefined) {
+    return resolveHarnessPaths({ harnessRoot: explicitHarnessRoot });
+  }
+  return resolveHarnessPaths({
+    ...(process.argv[1] === undefined ? {} : { runtimeEntryPath: process.argv[1] }),
+    developmentRoot: io.cwd,
+  });
+}
+
+function resolveWorkflowArgument(paths: HarnessPaths, path: string): string {
+  const resolvedPath = resolve(paths.installed ? paths.harnessRoot : paths.projectRoot, path);
+  if (!isInsideWorkspace(paths.workflowsRoot, resolvedPath)) {
+    throw new Error("Workflow 路径必须位于 Harness Root 的 workflows/ 内。");
+  }
+  return resolvedPath;
 }
 
 async function readJson(path: string): Promise<unknown> {
@@ -90,8 +123,9 @@ async function doctor(io: CliIo): Promise<number> {
 }
 
 async function projectCheckCommand(requestedRoot: string | undefined, io: CliIo): Promise<number> {
+  const paths = commandPaths(io);
   const rootDir = resolve(
-    io.cwd,
+    paths.projectRoot,
     requestedRoot ?? process.env.HARNESS_WORKSPACE_ROOT ?? ".",
   );
   const result = await checkNodeProject({ rootDir });
@@ -130,13 +164,17 @@ async function nodePolicyCheckCommand(
   try {
     const changedOnly = firstArgument === "--changed";
     const requestedRoot = changedOnly ? secondArgument : firstArgument;
-    const rootDir = resolve(io.cwd, requestedRoot ?? process.env.HARNESS_WORKSPACE_ROOT ?? ".");
+    const paths = commandPaths(io);
+    const rootDir = resolve(
+      paths.projectRoot,
+      requestedRoot ?? process.env.HARNESS_WORKSPACE_ROOT ?? ".",
+    );
     const sourcePaths = changedOnly ? await changedFiles(rootDir) : undefined;
     const result = await checkNodeTypeScriptPolicy({
       rootDir,
       standardsPath: join(
-        resolve(io.cwd),
-        "harness/workflows/node-typescript-standards/STANDARDS.md",
+        paths.workflowsRoot,
+        "node-typescript-standards/STANDARDS.md",
       ),
       ...(sourcePaths === undefined ? {} : { sourcePaths }),
     });
@@ -149,10 +187,17 @@ async function nodePolicyCheckCommand(
 }
 
 async function compileCommand(command: "validate" | "diagram", path: string, io: CliIo): Promise<number> {
-  const result = await compileWorkflow({
-    rootDir: io.cwd,
-    workflowPath: resolve(io.cwd, path),
-  });
+  const paths = commandPaths(io);
+  let result;
+  try {
+    result = await compileWorkflow({
+      rootDir: paths.harnessRoot,
+      workflowPath: resolveWorkflowArgument(paths, path),
+    });
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
 
   if (!result.ok) {
     for (const diagnostic of result.diagnostics) {
@@ -178,9 +223,10 @@ async function diagramCommand(
     return compileCommand("diagram", workflowPath, io);
   }
   try {
+    const paths = commandPaths(io);
     const expanded = await expandWorkflowPrerequisites({
-      rootDir: io.cwd,
-      workflowPath: resolve(io.cwd, workflowPath),
+      rootDir: paths.harnessRoot,
+      workflowPath: resolveWorkflowArgument(paths, workflowPath),
     });
     io.stdout(expanded.mermaid);
     return 0;
@@ -194,47 +240,67 @@ function isInsideWorkspace(rootDir: string, path: string): boolean {
   return path === rootDir || path.startsWith(`${rootDir}${sep}`);
 }
 
+type WorkflowImageSource = {
+  graph: FlatGraph;
+  workflowName: string;
+  title: string;
+};
+
+async function loadWorkflowImageSource(
+  paths: HarnessPaths,
+  workflowPath: string,
+  expandPrerequisites: boolean,
+): Promise<WorkflowImageSource> {
+  if (expandPrerequisites) {
+    const expanded = await expandWorkflowPrerequisites({
+      rootDir: paths.harnessRoot,
+      workflowPath: resolveWorkflowArgument(paths, workflowPath),
+    });
+    return {
+      graph: expanded.graph,
+      workflowName: `${expanded.workflowName}-expanded`,
+      title: expanded.title,
+    };
+  }
+  const result = await compileWorkflow({
+    rootDir: paths.harnessRoot,
+    workflowPath: resolveWorkflowArgument(paths, workflowPath),
+  });
+  if (!result.ok || result.graph === null || result.workflow === null) {
+    const message = result.diagnostics
+      .map((diagnostic) => `[${diagnostic.code}] ${diagnostic.message}`)
+      .join("；");
+    throw new Error(message);
+  }
+  const workflowName = result.workflow.document.name;
+  return {
+    graph: result.graph,
+    workflowName,
+    title: result.workflow.document.title ?? workflowName,
+  };
+}
+
 async function imageCommand(
   workflowPath: string,
   requestedOutputPath: string | undefined,
   expandPrerequisites: boolean,
   io: CliIo,
 ): Promise<number> {
-  let graph;
-  let workflowName;
-  let title;
-  if (expandPrerequisites) {
-    try {
-      const expanded = await expandWorkflowPrerequisites({
-        rootDir: io.cwd,
-        workflowPath: resolve(io.cwd, workflowPath),
-      });
-      graph = expanded.graph;
-      workflowName = `${expanded.workflowName}-expanded`;
-      title = expanded.title;
-    } catch (error: unknown) {
-      io.stderr(error instanceof Error ? error.message : String(error));
-      return 1;
-    }
-  } else {
-    const result = await compileWorkflow({
-      rootDir: io.cwd,
-      workflowPath: resolve(io.cwd, workflowPath),
-    });
-    if (!result.ok || result.graph === null || result.workflow === null) {
-      for (const diagnostic of result.diagnostics) {
-        io.stderr(`[${diagnostic.code}] ${diagnostic.message}`);
-      }
-      return 1;
-    }
-    graph = result.graph;
-    workflowName = result.workflow.document.name;
-    title = result.workflow.document.title ?? workflowName;
+  const paths = commandPaths(io);
+  let source: WorkflowImageSource;
+  try {
+    source = await loadWorkflowImageSource(paths, workflowPath, expandPrerequisites);
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
   }
-  const rootDir = resolve(io.cwd);
+  const rootDir = paths.installed ? paths.harnessRoot : paths.projectRoot;
+  const defaultOutput = paths.installed
+    ? `generated/${source.workflowName}.svg`
+    : `harness/generated/${source.workflowName}.svg`;
   const outputPath = resolve(
     rootDir,
-    requestedOutputPath ?? `harness/generated/${workflowName}.svg`,
+    requestedOutputPath ?? defaultOutput,
   );
   if (!isInsideWorkspace(rootDir, outputPath)) {
     io.stderr("图片输出路径必须位于当前工作区内。");
@@ -242,14 +308,14 @@ async function imageCommand(
   }
 
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, renderWorkflowSvg(graph, title), "utf8");
+  await writeFile(outputPath, renderWorkflowSvg(source.graph, source.title), "utf8");
   io.stdout(`图片已生成：${relative(rootDir, outputPath)}`);
   return 0;
 }
 
 async function syncCommand(check: boolean, io: CliIo): Promise<number> {
   try {
-    const result = await syncWorkflowCatalog({ rootDir: io.cwd, check });
+    const result = await syncWorkflowCatalog({ rootDir: commandPaths(io).harnessRoot, check });
     io.stdout(
       check
         ? "Workflow Catalog：已是最新"
@@ -266,9 +332,10 @@ async function syncCommand(check: boolean, io: CliIo): Promise<number> {
 
 async function activateCommand(check: boolean, io: CliIo): Promise<number> {
   try {
+    const rootDir = commandPaths(io).harnessRoot;
     const result = check
-      ? await checkWorkflowCatalog({ rootDir: io.cwd })
-      : await activateWorkflowCatalog({ rootDir: io.cwd });
+      ? await checkWorkflowCatalog({ rootDir })
+      : await activateWorkflowCatalog({ rootDir });
     io.stdout(
       check
         ? "Workflow Catalog：激活范围已是最新"
@@ -290,16 +357,17 @@ async function startCommand(
   io: CliIo,
 ): Promise<number> {
   try {
-    const input = await readJson(resolve(io.cwd, inputPath));
+    const paths = commandPaths(io);
+    const input = await readJson(resolve(paths.projectRoot, inputPath));
     const requestedWorkspaceRoot = asRecord(input)?.projectRoot;
     const response = await startWorkflowRun({
-      rootDir: io.cwd,
+      rootDir: paths.harnessRoot,
       workflowPath,
       executionKey,
       input,
       ...(typeof requestedWorkspaceRoot === "string"
-        ? { workspaceRoot: resolve(io.cwd, requestedWorkspaceRoot) }
-        : {}),
+        ? { workspaceRoot: resolve(paths.projectRoot, requestedWorkspaceRoot) }
+        : { workspaceRoot: paths.workspaceRoot }),
     });
     io.stdout(JSON.stringify(response));
     return 0;
@@ -315,12 +383,13 @@ async function continueCommand(
   io: CliIo,
 ): Promise<number> {
   try {
+    const paths = commandPaths(io);
     const result =
       resultPath === undefined
         ? undefined
-        : ((await readJson(resolve(io.cwd, resultPath))) as StepResult);
+        : ((await readJson(resolve(paths.projectRoot, resultPath))) as StepResult);
     const response = await continueWorkflowRun({
-      rootDir: io.cwd,
+      rootDir: paths.harnessRoot,
       runId,
       ...(result === undefined ? {} : { result }),
     });
@@ -334,8 +403,86 @@ async function continueCommand(
 
 async function cancelCommand(runId: string, reason: string, io: CliIo): Promise<number> {
   try {
-    const response = await cancelWorkflowRun({ rootDir: io.cwd, runId, reason });
+    const response = await cancelWorkflowRun({
+      rootDir: commandPaths(io).harnessRoot,
+      runId,
+      reason,
+    });
     io.stdout(JSON.stringify(response));
+    return 0;
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+async function reportCommand(
+  runId: string,
+  format: string | undefined,
+  io: CliIo,
+): Promise<number> {
+  try {
+    const report = await loadWorkflowExecutionReport(commandPaths(io).harnessRoot, runId);
+    if (format === undefined || format === "json") {
+      io.stdout(JSON.stringify(report));
+      return 0;
+    }
+    if (format === "markdown") {
+      io.stdout(renderWorkflowExecutionReport(report));
+      return 0;
+    }
+    io.stderr("report format 只支持 json 或 markdown。");
+    return 2;
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+async function installCommand(workspace: string | undefined, io: CliIo): Promise<number> {
+  try {
+    const result = await installHarnessProject({
+      sourceRoot: resolve(import.meta.dirname, ".."),
+      projectRoot: resolve(io.cwd, workspace ?? "."),
+    });
+    io.stdout(JSON.stringify(result));
+    return 0;
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+async function preflightCommand(io: CliIo): Promise<number> {
+  try {
+    const result = await checkHarnessProject({
+      ...(process.argv[1] === undefined ? {} : { runtimeEntryPath: process.argv[1] }),
+      requireLocalRuntime: true,
+    });
+    io.stdout(JSON.stringify(result));
+    return 0;
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+async function routeCommand(io: CliIo): Promise<number> {
+  try {
+    await checkHarnessProject({
+      ...(process.argv[1] === undefined ? {} : { runtimeEntryPath: process.argv[1] }),
+      requireLocalRuntime: true,
+    });
+    const paths = commandPaths(io);
+    io.stdout(JSON.stringify({
+      kind: "harness-next.router-directive",
+      routerSkillPath: relative(
+        paths.projectRoot,
+        join(paths.skillsRoot, "workflow-router/SKILL.md"),
+      ),
+      catalogPath: relative(paths.projectRoot, paths.catalogPath),
+      instruction: "加载 Router Skill，并由当前 Agent 按其指令调用本地 CLI；CLI 不会自主控制外部 Agent。",
+    }));
     return 0;
   } catch (error: unknown) {
     io.stderr(error instanceof Error ? error.message : String(error));
@@ -351,6 +498,9 @@ function missingArguments(io: CliIo): number {
 type CommandHandler = (args: string[], io: CliIo) => Promise<number> | number;
 
 const COMMAND_HANDLERS: Readonly<Record<string, CommandHandler>> = {
+  install: ([workspace], io) => installCommand(workspace, io),
+  preflight: (_args, io) => preflightCommand(io),
+  route: (_args, io) => routeCommand(io),
   doctor: (_args, io) => doctor(io),
   "project-check": ([requestedRoot], io) => projectCheckCommand(requestedRoot, io),
   "node-policy-check": ([firstArgument, secondArgument], io) =>
@@ -381,6 +531,14 @@ const COMMAND_HANDLERS: Readonly<Record<string, CommandHandler>> = {
     runId === undefined || reason === undefined
       ? missingArguments(io)
       : cancelCommand(runId, reason, io),
+  report: ([runId, option, optionValue], io) =>
+    runId === undefined
+      ? missingArguments(io)
+      : reportCommand(
+          runId,
+          option === "--format" ? optionValue : option?.replace(/^--format=/u, ""),
+          io,
+        ),
 };
 
 export async function main(argv: string[], io: CliIo): Promise<number> {
@@ -390,7 +548,10 @@ export async function main(argv: string[], io: CliIo): Promise<number> {
 }
 
 const entryPath = process.argv[1];
-if (entryPath !== undefined && import.meta.url === pathToFileURL(entryPath).href) {
+if (
+  entryPath !== undefined &&
+  realpathSync(entryPath) === realpathSync(fileURLToPath(import.meta.url))
+) {
   const code = await main(process.argv.slice(2), {
     cwd: process.cwd(),
     stdout: console.log,

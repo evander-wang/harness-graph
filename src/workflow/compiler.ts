@@ -10,6 +10,8 @@ import {
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { AnySchema } from "ajv";
 
+import { resolveHarnessLayout } from "./paths.js";
+
 export type Diagnostic = {
   code: string;
   message: string;
@@ -53,6 +55,55 @@ function getChecks(task: unknown): string[] {
   return Array.isArray(checks) ? checks.filter((check): check is string => typeof check === "string") : [];
 }
 
+function executionDiagnostics(workflow: Specification.Workflow): Diagnostic[] {
+  const documentMetadata = asRecord(workflow.document.metadata);
+  const documentHarness = asRecord(documentMetadata?.harness);
+  const execution = asRecord(documentHarness?.execution);
+  const maxStepAttempts = execution?.maxStepAttempts;
+  if (
+    maxStepAttempts === undefined ||
+    (typeof maxStepAttempts === "number" && Number.isInteger(maxStepAttempts) && maxStepAttempts > 0)
+  ) {
+    return [];
+  }
+  return [{
+    code: "execution.invalid-max-attempts",
+    message: "document.metadata.harness.execution.maxStepAttempts 必须是正整数。",
+  }];
+}
+
+function switchConditionDiagnostics(stepId: string, task: Record<string, unknown>): Diagnostic[] {
+  if (!Array.isArray(task.switch)) return [];
+  const diagnostics: Diagnostic[] = [];
+  for (const branchItem of task.switch) {
+    const branchEntry = Object.entries(asRecord(branchItem) ?? {})[0];
+    const condition = branchEntry === undefined ? undefined : asRecord(branchEntry[1])?.when;
+    if (
+      typeof condition === "string" &&
+      !/^\.status\s*==\s*["'](passed|needs_changes|blocked)["']$/u.test(condition)
+    ) {
+      diagnostics.push({
+        code: "switch.unsupported-condition",
+        message: `Step '${stepId}' 使用了 Runtime 不支持的条件：${condition}`,
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function taskProfileDiagnostics(stepId: string, task: unknown): Diagnostic[] {
+  const taskRecord = asRecord(task);
+  const isLocalCall = typeof taskRecord?.call === "string";
+  const isSwitch = Array.isArray(taskRecord?.switch);
+  const unsupported = isLocalCall || isSwitch
+    ? []
+    : [{
+        code: "task.unsupported",
+        message: `Step '${stepId}' 使用了首版 Harness 尚未支持的 Task 类型。`,
+      }];
+  return [...unsupported, ...(taskRecord === null ? [] : switchConditionDiagnostics(stepId, taskRecord))];
+}
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await access(path);
@@ -63,22 +114,7 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 function validateHarnessProfile(workflow: Specification.Workflow): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  const documentMetadata = asRecord(workflow.document.metadata);
-  const documentHarness = asRecord(documentMetadata?.harness);
-  const execution = asRecord(documentHarness?.execution);
-  const maxStepAttempts = execution?.maxStepAttempts;
-  if (
-    maxStepAttempts !== undefined &&
-    (typeof maxStepAttempts !== "number" ||
-      !Number.isInteger(maxStepAttempts) ||
-      maxStepAttempts <= 0)
-  ) {
-    diagnostics.push({
-      code: "execution.invalid-max-attempts",
-      message: "document.metadata.harness.execution.maxStepAttempts 必须是正整数。",
-    });
-  }
+  const diagnostics = executionDiagnostics(workflow);
 
   if (asRecord(workflow)?.schedule !== undefined) {
     diagnostics.push({
@@ -92,34 +128,66 @@ function validateHarnessProfile(workflow: Specification.Workflow): Diagnostic[] 
     if (entry === undefined) {
       continue;
     }
-    const [stepId, task] = entry;
-    const taskRecord = asRecord(task);
-    const isLocalCall = typeof taskRecord?.call === "string";
-    const isSwitch = Array.isArray(taskRecord?.switch);
-    if (!isLocalCall && !isSwitch) {
-      diagnostics.push({
-        code: "task.unsupported",
-        message: `Step '${stepId}' 使用了首版 Harness 尚未支持的 Task 类型。`,
-      });
-    }
-    if (isSwitch) {
-      for (const branchItem of taskRecord.switch as unknown[]) {
-        const branchEntry = Object.entries(asRecord(branchItem) ?? {})[0];
-        const branch = branchEntry === undefined ? null : asRecord(branchEntry[1]);
-        const condition = branch?.when;
-        if (
-          typeof condition === "string" &&
-          !/^\.status\s*==\s*["'](passed|needs_changes|blocked)["']$/u.test(condition)
-        ) {
-          diagnostics.push({
-            code: "switch.unsupported-condition",
-            message: `Step '${stepId}' 使用了 Runtime 不支持的条件：${condition}`,
-          });
-        }
-      }
-    }
+    diagnostics.push(...taskProfileDiagnostics(entry[0], entry[1]));
   }
 
+  return diagnostics;
+}
+
+function nextTaskFor(
+  task: Record<string, unknown>,
+  index: number,
+  taskEntries: readonly ([string, unknown] | undefined)[],
+  tasksById: ReadonlyMap<string, unknown>,
+): unknown {
+  const then = task.then;
+  if (typeof then === "string" && !["continue", "end", "exit"].includes(then)) {
+    return tasksById.get(then);
+  }
+  return then === undefined || then === "continue" ? taskEntries[index + 1]?.[1] : undefined;
+}
+
+async function validateSkillBinding(
+  stepId: string,
+  task: unknown,
+  index: number,
+  taskEntries: readonly ([string, unknown] | undefined)[],
+  tasksById: ReadonlyMap<string, unknown>,
+  rootDir: string,
+): Promise<Diagnostic[]> {
+  const taskRecord = asRecord(task);
+  if (taskRecord === null) return [];
+  const call = taskRecord.call;
+  if (typeof call !== "string") return [];
+  if (REMOTE_CALLS.has(call)) {
+    return [{
+      code: "task.unsupported",
+      message: `Step '${stepId}' 使用了当前项目不支持的远程调用：${call}`,
+    }];
+  }
+  const diagnostics: Diagnostic[] = [];
+  const layout = resolveHarnessLayout(rootDir);
+  if (!(await pathExists(join(layout.skillsRoot, call, "SKILL.md")))) {
+    diagnostics.push({
+      code: "skill.not-found",
+      message: `Step '${stepId}' 引用的 Skill 不存在：skills/${call}/SKILL.md`,
+    });
+  }
+  const checks = getChecks(task);
+  if (Array.isArray(asRecord(nextTaskFor(taskRecord, index, taskEntries, tasksById))?.switch) && checks.length === 0) {
+    diagnostics.push({
+      code: "check.required-before-switch",
+      message: `Step '${stepId}' 进入 switch 前必须绑定至少一个 Check。`,
+    });
+  }
+  for (const check of checks) {
+    if (!(await pathExists(join(layout.checksRoot, check, "CHECK.md")))) {
+      diagnostics.push({
+        code: "check.not-found",
+        message: `Step '${stepId}' 引用的 Check 不存在：checks/${check}/CHECK.md`,
+      });
+    }
+  }
   return diagnostics;
 }
 
@@ -137,56 +205,17 @@ async function validateLocalBindings(
   }
 
   for (const [index, entry] of taskEntries.entries()) {
-    if (entry === undefined) {
-      continue;
-    }
-    const [stepId, task] = entry;
-    const taskRecord = asRecord(task);
-    const call = taskRecord?.call;
-
-    if (typeof call === "string") {
-      if (REMOTE_CALLS.has(call)) {
-        diagnostics.push({
-          code: "task.unsupported",
-          message: `Step '${stepId}' 使用了当前项目不支持的远程调用：${call}`,
-        });
-        continue;
-      }
-
-      const skillPath = join(rootDir, "skills", call, "SKILL.md");
-      if (!(await pathExists(skillPath))) {
-        diagnostics.push({
-          code: "skill.not-found",
-          message: `Step '${stepId}' 引用的 Skill 不存在：skills/${call}/SKILL.md`,
-        });
-      }
-
-      const checks = getChecks(task);
-      const then = taskRecord?.then;
-      const nextEntry = taskEntries[index + 1];
-      const nextTask =
-        typeof then === "string" && !["continue", "end", "exit"].includes(then)
-          ? tasksById.get(then)
-          : then === undefined || then === "continue"
-            ? nextEntry?.[1]
-            : undefined;
-      if (Array.isArray(asRecord(nextTask)?.switch) && checks.length === 0) {
-        diagnostics.push({
-          code: "check.required-before-switch",
-          message: `Step '${stepId}' 进入 switch 前必须绑定至少一个 Check。`,
-        });
-      }
-
-      for (const check of checks) {
-        const checkPath = join(rootDir, "harness/checks", check, "CHECK.md");
-        if (!(await pathExists(checkPath))) {
-          diagnostics.push({
-            code: "check.not-found",
-            message: `Step '${stepId}' 引用的 Check 不存在：harness/checks/${check}/CHECK.md`,
-          });
-        }
-      }
-    }
+    if (entry === undefined) continue;
+    diagnostics.push(
+      ...(await validateSkillBinding(
+        entry[0],
+        entry[1],
+        index,
+        taskEntries,
+        tasksById,
+        rootDir,
+      )),
+    );
   }
 
   return diagnostics;
@@ -261,8 +290,8 @@ function resolveModelSchemaPath(rootDir: string, endpoint: string): string {
     throw new Error("Schema URI 无效。");
   }
   const relativePath = resourceEndpoint.slice("harness://".length);
-  const modelsRoot = resolve(rootDir, "harness/models");
-  const schemaPath = resolve(rootDir, "harness", relativePath);
+  const modelsRoot = resolveHarnessLayout(rootDir).modelsRoot;
+  const schemaPath = resolve(modelsRoot, relativePath.replace(/^models\//u, ""));
   if (schemaPath !== modelsRoot && !schemaPath.startsWith(`${modelsRoot}${sep}`)) {
     throw new Error("Schema URI 超出了 harness/models/ 目录。");
   }
