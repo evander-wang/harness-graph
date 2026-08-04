@@ -29,6 +29,10 @@ import {
   startWorkflowRun,
   type StepResult,
 } from "./workflow/runtime.js";
+import {
+  loadWorkflowExecutionReport,
+  renderWorkflowExecutionReport,
+} from "./workflow/report.js";
 import { renderWorkflowSvg } from "./workflow/svg-renderer.js";
 
 export type CliIo = {
@@ -65,7 +69,7 @@ function printUsage(io: CliIo): void {
   io.stderr(
     "用法：harness-next " +
       "<install|preflight|route|doctor|project-check|node-policy-check|validate|diagram|image|" +
-      "sync|activate|start|continue|cancel> [...args]",
+      "sync|activate|start|continue|cancel|report> [...args]",
   );
 }
 
@@ -412,6 +416,29 @@ async function cancelCommand(runId: string, reason: string, io: CliIo): Promise<
   }
 }
 
+async function reportCommand(
+  runId: string,
+  format: string | undefined,
+  io: CliIo,
+): Promise<number> {
+  try {
+    const report = await loadWorkflowExecutionReport(commandPaths(io).harnessRoot, runId);
+    if (format === undefined || format === "json") {
+      io.stdout(JSON.stringify(report));
+      return 0;
+    }
+    if (format === "markdown") {
+      io.stdout(renderWorkflowExecutionReport(report));
+      return 0;
+    }
+    io.stderr("report format 只支持 json 或 markdown。");
+    return 2;
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
 async function installCommand(workspace: string | undefined, io: CliIo): Promise<number> {
   try {
     const result = await installHarnessProject({
@@ -504,6 +531,14 @@ const COMMAND_HANDLERS: Readonly<Record<string, CommandHandler>> = {
     runId === undefined || reason === undefined
       ? missingArguments(io)
       : cancelCommand(runId, reason, io),
+  report: ([runId, option, optionValue], io) =>
+    runId === undefined
+      ? missingArguments(io)
+      : reportCommand(
+          runId,
+          option === "--format" ? optionValue : option?.replace(/^--format=/u, ""),
+          io,
+        ),
 };
 
 export async function main(argv: string[], io: CliIo): Promise<number> {

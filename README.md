@@ -29,7 +29,7 @@ node /path/to/harness-next/dist/cli.js install
 node dist/cli.js install /path/to/your-project
 ```
 
-安装器会创建 `harness-next/`，并在 `AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 顶部维护版本化入口块。项目原有规则保持不变。
+安装器会创建 `harness-next/`，并在 `AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 顶部维护版本化入口块。它还会创建 `.agents/skills/harness-next/SKILL.md` 和 `.claude/skills/harness-next/SKILL.md`，供 Codex 和 Claude Code 发现项目入口。项目原有规则保持不变。
 
 Runtime、Workflow、Model、Check 和 Skill 会随业务项目保存。运行状态位于 `harness-next/.state/`，Runtime 依赖位于 `harness-next/runtime/node_modules/`，两者都被 Git 忽略。
 
@@ -53,6 +53,8 @@ npm ci --prefix harness-next/runtime --omit=dev --ignore-scripts --no-audit --no
 ./harness-next/bin/harness-next preflight
 ```
 
+再次从 Harness Next 源码执行 `install` 会检查并升级项目本地 Runtime；首次安装和升级都会生成只包含生产依赖的 Runtime `package.json` 与 Lockfile。若项目存在运行中的 Run，升级会停止并保留原 Runtime，待 Run 完成或取消后再重试 `install`。
+
 ### 4. 让 Agent 执行任务
 
 日常使用时，在业务项目中直接向 Agent 描述任务。托管入口要求 Agent 先运行 `route`，也可以在提示中明确写出：
@@ -63,6 +65,15 @@ npm ci --prefix harness-next/runtime --omit=dev --ignore-scripts --no-audit --no
 ```
 
 Agent 会根据 Catalog 选择 Workflow，并通过项目本地 CLI 创建或恢复 Run。每次只加载当前 Step 的 Skill、Check 和必要输入，Transition 由 Runtime 返回。
+
+需要显式触发项目 Skill 时，Codex 使用 `$harness-next`，Claude Code 使用 `/harness-next`：
+
+```text
+$harness-next 使用 node-typescript-development 工作流修复配置加载失败，并补充回归测试
+/harness-next 使用 node-typescript-development 工作流修复配置加载失败，并补充回归测试
+```
+
+用户明确给出的 Workflow 名称或 Alias 会作为强制选择；名称不存在、有歧义或不是入口 Workflow 时会停止并报告。两个宿主 Adapter 只转交给 `harness-next/skills/harness-next/SKILL.md`，再由它加载 `workflow-router`。不要直接调用 `harness-next/skills/` 中的内部 Step Skill。
 
 宿主或 Agent 重启后，重新执行 `route` 即可检查可恢复 Run。不要删除 `harness-next/.state/`，也不要手工解析 Workflow 决定下一步。
 
@@ -76,7 +87,7 @@ Agent 会根据 Catalog 选择 Workflow，并通过项目本地 CLI 创建或恢
 ./harness-next/bin/harness-next validate workflows/node-typescript-development/workflow.yaml
 ```
 
-重复执行 `install` 不会覆盖项目修改或删除的 Workflow、Skill、Check 和 Model，只会确认安装并维护入口块。Runtime 必需文件缺失时安装会失败；当前版本不提供 `repair`、升级或卸载命令。
+重复执行 `install` 不会覆盖项目修改或删除的 Workflow、Skill、Check 和 Model。早期 `layoutVersion: 1` 安装如果尚未包含项目级 Skill，同一个 `install` 会原地补充规范入口、两个宿主 Adapter、Runtime 和清单字段，不需要额外迁移命令。Runtime 必需文件缺失时安装会失败；当前版本不提供 `repair` 或卸载命令。
 
 ### 6. 失败处理
 
@@ -112,7 +123,7 @@ flowchart TD
 | `skills/` | Agent 完成 Step 的方法 |
 | `harness/checks/` | Step 的验收规则 |
 
-这些是 Harness Next 引擎仓库中的发布源路径；安装到业务项目后分别位于 `harness-next/workflows/`、`harness-next/models/`、`harness-next/checks/` 和 `harness-next/skills/`。
+这些是 Harness Next 引擎仓库中的发布源路径；安装到业务项目后分别位于 `harness-next/workflows/`、`harness-next/models/`、`harness-next/checks/` 和 `harness-next/skills/`。项目根目录的 `.agents/skills/harness-next/` 与 `.claude/skills/harness-next/` 只是宿主 Adapter，不是第二份 Skill 事实源。
 
 ## 五个核心关键词
 
@@ -172,7 +183,7 @@ data: {}
 
 Runtime 不调用外部 Agent，也不提供分布式调度。`workflow-router` 由当前本地 Agent 加载，并自动调用 Runtime、加载当前 Skill 和提交结果。
 
-第一版没有 Codex、Claude Code 等宿主 Hook。Agent 或宿主完全重启后不保证主动恢复；重新加载 Router 后，Runtime 可以根据本地状态安全恢复。
+第一版提供 Codex 和 Claude Code 的项目 Skill Adapter，但没有宿主生命周期 Hook。Agent 或宿主完全重启后不保证主动恢复；重新触发项目 Skill 或加载 Router 后，Runtime 可以根据本地状态安全恢复。
 
 ## Agent 使用
 
@@ -314,7 +325,10 @@ npm run project:check -- ../path/to/project
 ./harness-next/bin/harness-next start <workflow.yaml> <execution-key> <input.json>
 ./harness-next/bin/harness-next continue <run-id> [step-result.json]
 ./harness-next/bin/harness-next cancel <run-id> <reason>
+./harness-next/bin/harness-next report <run-id> --format markdown
 ```
+
+Runtime 会把实际执行的 Step、Transition、Check 和证据摘要保存在对应 Run 的 `.state/runs/<run-id>/state.json` 中；`report` 读取这份记录生成摘要，不重新解析 Workflow 来猜测执行路径。执行状态和 trace 属于本地状态，不提交 Git，也不保存完整 Prompt 或 Secret。
 
 下面的 npm scripts 仅供 Harness Next 引擎仓库开发调试使用：
 

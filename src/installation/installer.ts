@@ -23,6 +23,20 @@ import {
   type HarnessPaths,
   type ResolveHarnessPathsOptions,
 } from "./paths.js";
+import {
+  readInstallationManifest,
+  writeInstallationManifestAtomically,
+  type InstallationManifest,
+} from "./manifest.js";
+import {
+  assertProjectSkillAdapters,
+  prepareLegacyProjectSkills,
+  prepareProjectSkillAdapters,
+  restoreProjectSkillAdapters,
+  writeProjectSkillAdapters,
+} from "./project-skills.js";
+import { generateRuntimeLock, writeRuntimePackage } from "./runtime-package.js";
+import { hashRuntimeArtifacts } from "./runtime.js";
 
 const AGENT_START_MARKER = "<!-- harness-next:start version=1 -->";
 const AGENT_END_MARKER = "<!-- harness-next:end -->";
@@ -95,18 +109,6 @@ export type CheckHarnessProjectResult = {
   projectRoot: ".";
   harnessRoot: "harness-next";
   recoverableRun: boolean;
-};
-
-type InstallationManifest = {
-  schemaVersion: 1;
-  layoutVersion: 1;
-  harnessVersion: string;
-  installedAt: string;
-  managedEntries: {
-    agents: true;
-    claude: true;
-    gitignore: true;
-  };
 };
 
 async function exists(path: string): Promise<boolean> {
@@ -261,6 +263,17 @@ async function copyPayload(sourceRoot: string, harnessRoot: string): Promise<voi
   }
 }
 
+async function copyRuntimePayload(sourceRoot: string, runtimeRoot: string): Promise<void> {
+  await mkdir(runtimeRoot, { recursive: true });
+  for (const [source] of RUNTIME_ENTRIES) {
+    await cp(join(sourceRoot, source), join(runtimeRoot, source), {
+      recursive: true,
+      errorOnExist: true,
+      force: false,
+    });
+  }
+}
+
 async function writeLauncher(harnessRoot: string): Promise<void> {
   const binRoot = join(harnessRoot, "bin");
   await mkdir(binRoot, { recursive: true });
@@ -290,31 +303,21 @@ async function installRuntimeDependencies(runtimeRoot: string): Promise<void> {
   });
 }
 
-async function readManifest(path: string): Promise<InstallationManifest> {
-  const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
-  const value = typeof parsed === "object" && parsed !== null
-    ? parsed as Record<string, unknown>
-    : {};
-  const managed = typeof value.managedEntries === "object" && value.managedEntries !== null
-    ? value.managedEntries as Record<string, unknown>
-    : {};
-  if (
-    value.schemaVersion !== 1 ||
-    value.layoutVersion !== 1 ||
-    typeof value.harnessVersion !== "string" ||
-    typeof value.installedAt !== "string" ||
-    managed.agents !== true ||
-    managed.claude !== true ||
-    managed.gitignore !== true
-  ) {
-    throw new Error("现有 Harness Next 安装清单版本不受支持。");
-  }
+type StagedRuntime = {
+  root: string;
+  version: string;
+  hash: string;
+};
+
+async function stageRuntime(sourceRoot: string, temporaryRoot: string): Promise<StagedRuntime> {
+  const runtimeRoot = join(temporaryRoot, "runtime");
+  await copyRuntimePayload(sourceRoot, runtimeRoot);
+  const runtimePackage = await writeRuntimePackage(sourceRoot, join(runtimeRoot, "package.json"));
+  await generateRuntimeLock(runtimeRoot);
   return {
-    schemaVersion: 1,
-    layoutVersion: 1,
-    harnessVersion: value.harnessVersion,
-    installedAt: value.installedAt,
-    managedEntries: { agents: true, claude: true, gitignore: true },
+    root: runtimeRoot,
+    version: runtimePackage.version,
+    hash: await hashRuntimeArtifacts(runtimeRoot),
   };
 }
 
@@ -377,7 +380,10 @@ export async function checkHarnessProject(
       throw new Error("当前命令不是从项目本地 Runtime 执行。");
     }
   }
-  await readManifest(paths.installationPath);
+  const manifestState = await readInstallationManifest(paths.installationPath);
+  if (manifestState.needsProjectSkillMigration) {
+    throw new Error("Harness Next 安装需要先重新执行 install 完成项目级 Skill 迁移。");
+  }
   for (const path of [
     "runtime/dist/cli.js",
     "runtime/package.json",
@@ -385,9 +391,16 @@ export async function checkHarnessProject(
     "bin/harness-next",
     "workflow-activation.yaml",
     "generated/workflow-catalog.json",
+    "skills/harness-next/SKILL.md",
     "skills/workflow-router/SKILL.md",
   ]) {
     await assertRegularFile(join(paths.harnessRoot, path), `harness-next/${path}`);
+  }
+  if (manifestState.manifest.runtime !== undefined) {
+    const runtimeHash = await hashRuntimeArtifacts(paths.runtimeRoot);
+    if (runtimeHash !== manifestState.manifest.runtime.hash) {
+      throw new Error("项目本地 Runtime 与安装清单哈希不一致。");
+    }
   }
   for (const path of ["workflows", "models", "checks", "skills"]) {
     await assertDirectory(join(paths.harnessRoot, path), `harness-next/${path}`);
@@ -413,6 +426,7 @@ export async function checkHarnessProject(
   ) {
     throw new Error(".gitignore 未完整忽略 Harness Next 本地状态和 Runtime 依赖。");
   }
+  await assertProjectSkillAdapters(paths.projectRoot);
   await checkWorkflowCatalog({ rootDir: paths.harnessRoot });
   await mkdir(join(paths.stateRoot, "runs"), { recursive: true });
   await mkdir(join(paths.stateRoot, "tmp"), { recursive: true });
@@ -488,7 +502,7 @@ export async function installHarnessProject(
     if (!(await exists(paths.installationPath))) {
       throw new Error("harness-next 已存在但不是受支持的 Harness Next 安装。");
     }
-    await readManifest(paths.installationPath);
+    const manifestState = await readInstallationManifest(paths.installationPath);
     for (const required of [
       "runtime/dist/cli.js",
       "runtime/package.json",
@@ -499,37 +513,130 @@ export async function installHarnessProject(
         throw new Error(`Runtime 必需文件缺失：${required}；请使用后续 repair 命令修复。`);
       }
     }
-    const maintainedEntries = await maintainedEntryChanges(sourceRoot, paths.harnessRoot);
     const managedUpdates = await prepareManagedProjectFiles(projectRoot);
-    const managedChanged = await writeManagedProjectFiles(managedUpdates);
-    return {
-      status: "installed",
-      changed: managedChanged,
-      projectRoot: ".",
-      harnessRoot: "harness-next",
-      command: "./harness-next/bin/harness-next route",
-      maintainedEntries,
-    };
+    const previousManifest = await readFile(paths.installationPath, "utf8");
+    const temporaryRoot = await mkdtemp(join(projectRoot, ".harness-next-runtime-"));
+    let stagedRuntime: StagedRuntime | undefined;
+    let runtimeBackupPath: string | undefined;
+    let runtimeSwapped = false;
+    let managedChanged = false;
+    let projectSkillsChanged = false;
+    let manifestChanged = false;
+    let projectSkills: Awaited<ReturnType<typeof prepareLegacyProjectSkills>> = [];
+    try {
+      stagedRuntime = await stageRuntime(sourceRoot, temporaryRoot);
+      const currentRuntimeHash = await hashRuntimeArtifacts(paths.runtimeRoot);
+      if (
+        manifestState.manifest.runtime !== undefined &&
+        currentRuntimeHash !== manifestState.manifest.runtime.hash
+      ) {
+        throw new Error("项目本地 Runtime 已被修改，无法自动升级。");
+      }
+      const runtimeChanged = currentRuntimeHash !== stagedRuntime.hash;
+      if (runtimeChanged && await hasRecoverableRun(paths.stateRoot)) {
+        throw new Error("项目存在运行中的 Run，不能升级 Runtime。");
+      }
+      if (manifestState.needsProjectSkillMigration) {
+        projectSkills = await prepareLegacyProjectSkills(projectRoot, sourceRoot);
+      } else {
+        await assertProjectSkillAdapters(projectRoot);
+      }
+      managedChanged = await writeManagedProjectFiles(managedUpdates);
+      if (projectSkills.length > 0) {
+        projectSkillsChanged = await writeProjectSkillAdapters(projectRoot, projectSkills);
+      }
+      if (runtimeChanged) {
+        if (options.installRuntimeDependencies !== false) {
+          await installRuntimeDependencies(stagedRuntime.root);
+        }
+        runtimeBackupPath = join(temporaryRoot, "runtime-backup");
+        await rename(paths.runtimeRoot, runtimeBackupPath);
+        await rename(stagedRuntime.root, paths.runtimeRoot);
+        runtimeSwapped = true;
+      }
+      const { managedEntries: previousManagedEntries, ...manifestBase } = manifestState.manifest;
+      const nextManifest: InstallationManifest = {
+        ...manifestBase,
+        runtime: {
+          version: stagedRuntime.version,
+          hash: stagedRuntime.hash,
+          stateSchemaVersion: 1,
+        },
+        managedEntries: {
+          ...previousManagedEntries,
+          codexSkill: true,
+          claudeSkill: true,
+        },
+      };
+      const nextManifestSource = `${JSON.stringify(nextManifest, null, 2)}\n`;
+      if (nextManifestSource !== previousManifest) {
+        await writeInstallationManifestAtomically(paths.installationPath, nextManifestSource);
+        manifestChanged = true;
+      }
+      if (manifestState.needsProjectSkillMigration) {
+        await checkHarnessProject({ projectRoot });
+      }
+      if (runtimeBackupPath !== undefined) await rm(runtimeBackupPath, { recursive: true, force: true });
+      const maintainedEntries = await maintainedEntryChanges(sourceRoot, paths.harnessRoot);
+      return {
+        status: "installed",
+        changed: managedChanged || projectSkillsChanged || runtimeChanged || manifestChanged,
+        projectRoot: ".",
+        harnessRoot: "harness-next",
+        command: "./harness-next/bin/harness-next route",
+        maintainedEntries,
+      };
+    } catch (error: unknown) {
+      if (manifestChanged) {
+        await writeInstallationManifestAtomically(paths.installationPath, previousManifest);
+      }
+      if (runtimeSwapped) {
+        await rm(paths.runtimeRoot, { recursive: true, force: true });
+        if (runtimeBackupPath !== undefined) await rename(runtimeBackupPath, paths.runtimeRoot);
+      }
+      if (projectSkillsChanged) await restoreProjectSkillAdapters(projectRoot, projectSkills);
+      if (managedChanged) await restoreManagedProjectFiles(managedUpdates);
+      throw error;
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
   }
 
   const managedUpdates = await prepareManagedProjectFiles(projectRoot);
+  const projectSkillAdapters = await prepareProjectSkillAdapters(projectRoot);
   const temporaryRoot = await mkdtemp(join(projectRoot, ".harness-next-install-"));
   const stagedHarnessRoot = join(temporaryRoot, "harness-next");
   let managedFilesChanged = false;
+  let projectSkillsChanged = false;
   let harnessInstalled = false;
   try {
     await mkdir(stagedHarnessRoot);
     await copyPayload(sourceRoot, stagedHarnessRoot);
+    const stagedRuntimeRoot = join(stagedHarnessRoot, "runtime");
+    const runtimePackage = await writeRuntimePackage(sourceRoot, join(stagedRuntimeRoot, "package.json"));
+    await generateRuntimeLock(stagedRuntimeRoot);
+    const runtimeHash = await hashRuntimeArtifacts(stagedRuntimeRoot);
     await writeLauncher(stagedHarnessRoot);
     if (options.installRuntimeDependencies !== false) {
-      await installRuntimeDependencies(join(stagedHarnessRoot, "runtime"));
+      await installRuntimeDependencies(stagedRuntimeRoot);
     }
     const manifest: InstallationManifest = {
       schemaVersion: 1,
       layoutVersion: 1,
       harnessVersion: await readHarnessVersion(sourceRoot),
       installedAt: (options.now ?? (() => new Date()))().toISOString(),
-      managedEntries: { agents: true, claude: true, gitignore: true },
+      runtime: {
+        version: runtimePackage.version,
+        hash: runtimeHash,
+        stateSchemaVersion: 1,
+      },
+      managedEntries: {
+        agents: true,
+        claude: true,
+        gitignore: true,
+        codexSkill: true,
+        claudeSkill: true,
+      },
     };
     await writeFile(
       join(stagedHarnessRoot, "installation.json"),
@@ -540,11 +647,15 @@ export async function installHarnessProject(
     await mkdir(join(stagedHarnessRoot, ".state/tmp"), { recursive: true });
     await activateWorkflowCatalog({ rootDir: stagedHarnessRoot });
     managedFilesChanged = await writeManagedProjectFiles(managedUpdates);
+    projectSkillsChanged = await writeProjectSkillAdapters(projectRoot, projectSkillAdapters);
     await rename(stagedHarnessRoot, paths.harnessRoot);
     harnessInstalled = true;
     await checkHarnessProject({ projectRoot });
   } catch (error: unknown) {
     if (harnessInstalled) await rm(paths.harnessRoot, { recursive: true, force: true });
+    if (projectSkillsChanged) {
+      await restoreProjectSkillAdapters(projectRoot, projectSkillAdapters);
+    }
     if (managedFilesChanged) await restoreManagedProjectFiles(managedUpdates);
     throw error;
   } finally {

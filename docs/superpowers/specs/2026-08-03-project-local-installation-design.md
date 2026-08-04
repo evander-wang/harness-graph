@@ -27,6 +27,10 @@ business-project/
 ├── AGENTS.md
 ├── CLAUDE.md
 ├── .gitignore
+├── .agents/
+│   └── skills/harness-next/SKILL.md   # Codex Adapter
+├── .claude/
+│   └── skills/harness-next/SKILL.md   # Claude Code Adapter
 ├── package.json
 ├── src/
 │
@@ -70,13 +74,14 @@ business-project/
     │
     └── .state/                        # 不提交
         ├── runs/
-        ├── tmp/
-        └── runtime.lock
+        └── tmp/
 ```
 
-项目根目录只新增一个业务可见目录 `harness-next/`。`AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 只插入安装器托管块，不替换文件。
+项目根目录只新增一个业务可见目录 `harness-next/`，并在两个宿主约定目录中新增项目 Skill Adapter。`AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 只插入安装器托管块，不替换文件。
 
 `harness-next/` 使用可见目录而非隐藏目录，因为 Workflow、Skill、Check 和 Model 是使用方需要持续维护、Review 和提交的项目资产。
+
+`.agents/skills/harness-next/SKILL.md` 与 `.claude/skills/harness-next/SKILL.md` 内容相同，只加载 `harness-next/skills/harness-next/SKILL.md`。Adapter 由安装器管理，不是 Skill 事实源；已有同名但内容不同的文件或非文件路径时安装必须失败，禁止覆盖。
 
 ## Root 定义
 
@@ -185,15 +190,24 @@ harness-next/installation.json
   "layoutVersion": 1,
   "harnessVersion": "0.1.0",
   "installedAt": "2026-08-03T00:00:00.000Z",
+  "runtime": {
+    "version": "0.1.0",
+    "hash": "<sha256>",
+    "stateSchemaVersion": 1
+  },
   "managedEntries": {
     "agents": true,
     "claude": true,
-    "gitignore": true
+    "gitignore": true,
+    "codexSkill": true,
+    "claudeSkill": true
   }
 }
 ```
 
 安装清单不得保存机器绝对路径。所有路径根据项目本地启动器动态解析，保证项目可移动、可 clone。
+
+早期 `layoutVersion: 1` 清单只有 `agents`、`claude` 和 `gitignore` 三个托管字段，或只有项目 Skill 字段而没有 Runtime 元数据。它们与当前 Runtime 路径契约兼容；重复执行同一个 `install` 时，安装器补齐规范入口、两个宿主 Adapter、生产 Runtime 以及 `codexSkill`、`claudeSkill` 和 `runtime` 字段，不提升布局版本。
 
 ## AGENTS.md 集成
 
@@ -276,6 +290,8 @@ harness-next/skills/
 harness-next/generated/workflow-catalog.json
 harness-next/workflow-activation.yaml
 harness-next/installation.json
+.agents/skills/harness-next/SKILL.md
+.claude/skills/harness-next/SKILL.md
 ```
 
 不提交：
@@ -299,6 +315,8 @@ harness-next install [target-directory]
 target-directory = process.cwd()
 ```
 
+同一 Interface 同时处理首次安装、早期 `layoutVersion: 1` 项目 Skill 迁移和当前安装的幂等确认，不增加 `upgrade` 或 `migrate` 命令。缺少清单时禁止根据目录猜测旧安装。
+
 执行顺序：
 
 1. 解析 Project Root；
@@ -306,7 +324,7 @@ target-directory = process.cwd()
 3. 检查目标路径可写；
 4. 检查已有 Harness 安装状态；
 5. 创建临时安装目录；
-6. 复制 Runtime；
+6. 复制 Runtime 构建产物，并从根 `package.json` 投影出只含生产依赖的 Runtime 包清单；
 7. 复制默认 Workflow；
 8. 复制 Model；
 9. 复制 Check；
@@ -314,13 +332,14 @@ target-directory = process.cwd()
 11. 复制激活声明；
 12. 生成项目本地启动器；
 13. 生成 `installation.json`；
-14. 修改 `AGENTS.md` 托管块；
-15. 修改 `CLAUDE.md` 托管块；
-16. 修改 `.gitignore` 托管块；
-17. 原子移动到 `harness-next/`；
-18. 生成 Workflow Catalog；
-19. 执行一次 preflight；
-20. 输出结构化结果。
+14. 检查并生成 Codex 与 Claude Code 项目 Skill Adapter；
+15. 修改 `AGENTS.md` 托管块；
+16. 修改 `CLAUDE.md` 托管块；
+17. 修改 `.gitignore` 托管块；
+18. 原子移动到 `harness-next/`；
+19. 生成 Workflow Catalog；
+20. 执行一次 preflight；
+21. 输出结构化结果。
 
 输出示例：
 
@@ -352,6 +371,8 @@ target-directory = process.cwd()
 | `harness/generated/workflow-catalog.json` | `harness-next/generated/workflow-catalog.json` |
 | `skills/` | `harness-next/skills/` |
 
+项目根目录中的两个宿主 Adapter 由安装器根据固定薄入口生成。它们只引用上表复制出的 `harness-next/skills/harness-next/SKILL.md`，不维护第二份 Workflow、Check 或 Step Skill 规则。
+
 安装载荷不包含 Harness Next 自身的开发入口和开发过程文件，例如：
 
 - Harness Next 自身的 `AGENTS.md`；
@@ -359,6 +380,8 @@ target-directory = process.cwd()
 - `docs/superpowers/`；
 - Harness Next 自身 CI；
 - TypeScript 源码和开发配置。
+
+Runtime 包保留 CLI 运行时实际需要的生产依赖，不包含 `scripts`、`devDependencies` 或测试工具。安装器随后用 `npm install --package-lock-only --omit=dev` 生成专用生产 Lockfile；只有发生 Runtime 替换时才恢复 `node_modules`。
 
 这些内容属于 Harness Next 引擎开发，不属于使用方项目运行载荷。
 
@@ -383,6 +406,19 @@ target-directory = process.cwd()
 - 清空 `.state/`；
 - 修改业务项目其他文件。
 
+### 早期 layoutVersion 1 安装
+
+清单中同时缺少 `codexSkill` 和 `claudeSkill` 时，`install` 执行同布局迁移：
+
+1. 校验旧清单、托管块和 Runtime 必需文件；
+2. 检查规范入口与两个宿主 Adapter 是否存在冲突；
+3. 创建缺失的 `harness-next/skills/harness-next/SKILL.md` 和 Adapter；
+4. 准备当前生产 Runtime，计算 Runtime 内容哈希；若存在运行中的 Run，则阻止 Runtime 替换；
+5. 原子替换 Runtime，保留原 `installedAt` 与 `harnessVersion`，最后原子补充清单托管字段和 Runtime 元数据；
+6. 执行当前 preflight，失败时恢复旧清单、旧 Runtime 并删除本次创建的文件。
+
+两个新字段只有一个存在、目标路径内容不同或目标不是普通文件时，安装失败且不得产生部分修改。
+
 ### 已修改官方文件
 
 如果用户已经修改：
@@ -396,12 +432,14 @@ harness-next/workflows/node-typescript-development/workflow.yaml
 - 不覆盖；
 - 不自动合并；
 - 报告为项目本地维护内容；
-- Runtime 文件升级必须由后续独立的 `upgrade` 命令完成，不能由 `install` 隐式升级。
+- Workflow、Skill、Check 和 Model 仍由项目维护，`install` 只报告这些文件的差异，不覆盖用户修改；Runtime 属于安装器管理资产，会在清单哈希与当前发布 Runtime 不一致时由同一个 `install` 原子升级。
+
+如果 Runtime 文件与清单记录的哈希也不一致，安装器会停止并报告 Runtime 已被本地修改，不覆盖该 Runtime。
 
 ### 缺失文件
 
 - Runtime 必需文件缺失：安装失败并提示后续使用 `repair`；
-- 用户可维护内容缺失：重复 `install` 不自动恢复，避免误覆盖用户删除意图；
+- 用户可维护内容缺失：重复 `install` 不自动恢复，早期清单迁移所需的新增规范入口除外；
 - 第一版不实现 `repair`，只报告问题。
 
 ## preflight 接口与行为
@@ -419,14 +457,15 @@ harness-next/workflows/node-typescript-development/workflow.yaml
 3. `installation.json` 是否存在且版本受支持；
 4. Runtime 文件是否完整；
 5. `workflows/`、`models/`、`checks/`、`skills/` 是否存在；
-6. Router Skill 是否存在；
+6. 规范入口 Skill 和 Router Skill 是否存在；
 7. `workflow-activation.yaml` 是否存在；
 8. Catalog 是否存在且未过期；
 9. `AGENTS.md` 托管块是否存在且唯一；
 10. `CLAUDE.md` 托管块是否存在且唯一；
 11. `.gitignore` 是否忽略 `.state/`；
 12. `.state/` 是否可写；
-13. 是否存在可恢复的 Run。
+13. Codex 与 Claude Code 项目 Skill Adapter 是否存在且内容未被修改；
+14. 是否存在可恢复的 Run。
 
 成功输出：
 
@@ -495,6 +534,18 @@ type HarnessPaths = {
   stateRoot: string;
 };
 ```
+
+## Workflow 执行记录与摘要
+
+Runtime 在每个 Run 的 `state.json` 中保存内部 `executionTrace`，记录实际发生的 Step 启动、Step Result、Transition 和最终状态。它是 Run 的执行证据，不是第二份 Workflow 定义；旧状态没有该字段时按空数组兼容读取。
+
+执行摘要由 `src/workflow/report.ts` 从 Run 状态生成，项目本地 CLI 通过以下命令输出：
+
+```bash
+./harness-next/bin/harness-next report <run-id> --format markdown
+```
+
+报告包含 Workflow 名称、版本、哈希、实际 Step 顺序、尝试次数、Transition、Check 状态和最终状态。默认只保存结构化本地 Run 状态；Router 在 Workflow 成功完成且宿主支持交互时询问用户是否展示 Markdown 摘要。失败、阻塞或取消时直接输出必要摘要。Trace 和报告不得保存完整 Prompt、Secret 或完整命令输出。
 
 职责分配：
 
@@ -631,6 +682,7 @@ flowchart TD
 - Compiler、Catalog、Runtime、Check、Router 的路径适配；
 - 幂等安装；
 - 项目本地 Workflow 执行和恢复。
+- 同一 `layoutVersion: 1` 内的项目 Skill 入口迁移。
 
 本次不实现：
 
@@ -640,7 +692,7 @@ flowchart TD
 - `uninstall`；
 - 宿主 Hook；
 - 自动合并用户修改过的 Workflow；
-- 旧目录布局自动迁移。
+- 不同目录布局自动迁移。
 
 ## 实现计划
 
@@ -845,6 +897,7 @@ node /path/to/harness-next/dist/cli.js install
 - 原有 `CLAUDE.md` 内容未丢失；
 - 原有 `.gitignore` 内容未丢失；
 - 第二次安装不产生重复内容；
+- 早期 `layoutVersion: 1` 安装可由同一个 `install` 原地补齐项目 Skill；
 - 用户修改 Workflow 后重复安装不覆盖；
 - Workflow、Skill、Check、Model 都位于项目本地 `harness-next/`；
 - Catalog 从项目本地 Workflow 生成；
@@ -862,7 +915,7 @@ node /path/to/harness-next/dist/cli.js install
 | 风险 | 影响 | 处理方式 |
 | --- | --- | --- |
 | 安装器覆盖用户规则 | 丢失业务项目规范 | 只修改有版本标记的托管块，异常标记时停止 |
-| 重复安装覆盖用户 Workflow | 丢失项目自定义流程 | 首版 install 不升级、不修复、不覆盖已安装内容 |
+| 重复安装覆盖用户 Workflow | 丢失项目自定义流程 | install 只维护明确管理的 Runtime 和项目 Skill 入口，不修复或覆盖用户维护的 Workflow、Check、Model 和 Step Skill |
 | 项目本地 Runtime 依赖无法恢复 | 新机器无法执行 | 提交 Runtime 构建产物和 Lockfile，忽略 node_modules |
 | Catalog 与 Workflow 不一致 | Router 使用过期入口 | route 内部强制 preflight 和 activate --check |
 | 业务项目同名 npm script | 执行错误命令 | Router 只调用项目本地启动器，不调用业务 npm scripts |
@@ -878,5 +931,5 @@ node /path/to/harness-next/dist/cli.js install
 4. `AGENTS.md` 和 `CLAUDE.md` 保持使用方所有权，Harness 只拥有标记块；
 5. Workspace 是 Runtime 上下文，不复制进所有 Workflow Input Schema；
 6. State 与事实源同属一个顶层目录，但通过 `.state/` 和 `.gitignore` 隔离；
-7. `install` 只负责首次安装和幂等确认，升级、修复、卸载后续分别设计；
+7. `install` 负责首次安装、同布局托管入口迁移、Runtime 生产包升级和幂等确认；目录布局升级、修复、卸载后续分别设计；
 8. 继续只使用 Workflow、Step、Transition、Skill、Check 五个对外流程概念，安装布局不引入新的流程建模概念。

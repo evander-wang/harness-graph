@@ -30,7 +30,9 @@ description: 从 Workflow Catalog 选择并自动执行当前工作区的本地 
 7. 执行当前 Skill 和需要 Agent 判断的 Check。
 8. 将 `runId`、`revision`、`stepId`、`status`、`evidence` 和可选 `data` 写成 Step Result JSON。
 9. 将结果写到 `harness-next/.state/tmp/`，自动执行 `./harness-next/bin/harness-next continue <run-id> <result-json>`。
-10. 返回下一个 Step 时重复第 6-9 步；`completed` 时交付；`blocked`、`failed` 或 `cancelled` 时停止。
+10. 返回下一个 Step 时重复第 6-9 步；`completed` 时进入执行摘要询问；`blocked`、`failed` 或 `cancelled` 时停止并输出必要的失败摘要。
+11. Workflow `completed` 后，如果当前宿主支持与用户交互，先询问：`是否输出本次 Workflow 执行摘要（Workflow、Step、Transition 和 Check）？` 用户确认后执行 `./harness-next/bin/harness-next report <run-id> --format markdown` 并交付结果；用户拒绝时不输出详细报告。
+12. 无法交互时不询问，只保留 Runtime 已保存的 `executionTrace`；不得因为无法询问而改变 Workflow 结果。
 
 Runtime 返回 `interrupted` 时，不得直接重做 Step。先检查工作区现状和已有证据，再提交继续、返工或阻塞结果。
 

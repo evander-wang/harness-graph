@@ -520,6 +520,49 @@ describe("CLI", () => {
     expect(cancelled.status).toBe("cancelled");
   });
 
+  test("report 输出已保存的 Workflow 执行摘要", async () => {
+    const rootDir = await createProject();
+    await writeFile(join(rootDir, "input.json"), "{}\n");
+    const startOutput: string[] = [];
+    await main(["start", "harness/workflows/example/workflow.yaml", "report-task", "input.json"], {
+      cwd: rootDir,
+      stdout: (message) => startOutput.push(message),
+      stderr: (message) => startOutput.push(message),
+    });
+    const started = JSON.parse(startOutput[0] ?? "{}") as {
+      runId: string;
+      revision: number;
+      step: { id: string };
+    };
+    const resultPath = join(rootDir, "result.json");
+    await writeFile(
+      resultPath,
+      `${JSON.stringify({
+        runId: started.runId,
+        revision: started.revision,
+        stepId: started.step.id,
+        status: "passed",
+        evidence: ["完成"],
+      })}\n`,
+    );
+    await main(["continue", started.runId, "result.json"], {
+      cwd: rootDir,
+      stdout: () => undefined,
+      stderr: () => undefined,
+    });
+
+    const output: string[] = [];
+    const code = await main(["report", started.runId, "--format", "markdown"], {
+      cwd: rootDir,
+      stdout: (message) => output.push(message),
+      stderr: (message) => output.push(message),
+    });
+
+    expect(code).toBe(0);
+    expect(output[0]).toContain("Workflow: cli-example (0.1.0)");
+    expect(output[0]).toContain("1. run-example [passed]");
+  });
+
   test("start 从 Workflow Input 固化目标项目目录", async () => {
     const rootDir = await createProject();
     const projectRoot = await mkdtemp(join(tmpdir(), "harness-cli-target-"));

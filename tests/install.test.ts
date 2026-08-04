@@ -5,6 +5,7 @@ import {
   mkdir,
   readFile,
   rename,
+  rm,
   stat,
   symlink,
   writeFile,
@@ -32,6 +33,27 @@ function installForTest(projectRoot: string) {
   });
 }
 
+const legacyManifest = {
+  schemaVersion: 1,
+  layoutVersion: 1,
+  harnessVersion: "0.1.0",
+  installedAt: "2026-08-03T00:00:00.000Z",
+  managedEntries: { agents: true, claude: true, gitignore: true },
+} as const;
+
+async function downgradeToLegacyInstallation(workspaceRoot: string): Promise<void> {
+  await writeFile(
+    join(workspaceRoot, "harness-next/installation.json"),
+    `${JSON.stringify(legacyManifest, null, 2)}\n`,
+    "utf8",
+  );
+  await Promise.all([
+    rm(join(workspaceRoot, "harness-next/skills/harness-next"), { recursive: true }),
+    rm(join(workspaceRoot, ".agents/skills/harness-next"), { recursive: true }),
+    rm(join(workspaceRoot, ".claude/skills/harness-next"), { recursive: true }),
+  ]);
+}
+
 beforeAll(async () => {
   await execFileAsync("npm", ["run", "build", "--silent"], { cwd: sourceRoot });
 });
@@ -54,18 +76,69 @@ describe("installHarnessProject", () => {
     await expect(access(join(workspaceRoot, "harness-next/models/node-change-request.schema.json"))).resolves.toBeUndefined();
     await expect(access(join(workspaceRoot, "harness-next/runtime/dist/cli.js"))).resolves.toBeUndefined();
     await expect(access(join(workspaceRoot, "harness-next/runtime/package-lock.json"))).resolves.toBeUndefined();
+    const runtimePackage = JSON.parse(
+      await readFile(join(workspaceRoot, "harness-next/runtime/package.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(runtimePackage).toMatchObject({
+      name: "harness-next",
+      type: "module",
+      bin: { "harness-next": "./dist/cli.js" },
+      engines: { node: ">=22.0.0", npm: ">=10.0.0" },
+    });
+    expect(runtimePackage.scripts).toBeUndefined();
+    expect(runtimePackage.devDependencies).toBeUndefined();
+    expect(runtimePackage.dependencies).toEqual({
+      "@dagrejs/dagre": "^3.0.0",
+      "@openworkflowspec/sdk": "1.0.3-alpha4",
+      ajv: "^8.17.1",
+      "js-yaml": "5.2.1",
+      semver: "^7.8.5",
+      typescript: "^5.8.3",
+    });
+    const runtimeLock = JSON.parse(
+      await readFile(join(workspaceRoot, "harness-next/runtime/package-lock.json"), "utf8"),
+    ) as { packages?: Record<string, { devDependencies?: unknown; dependencies?: unknown }> };
+    const runtimeRootLock = runtimeLock.packages?.[""];
+    expect(runtimeRootLock?.devDependencies).toBeUndefined();
+    expect(runtimeRootLock?.dependencies).toEqual(runtimePackage.dependencies);
+    await expect(
+      access(join(workspaceRoot, "harness-next/skills/harness-next/SKILL.md")),
+    ).resolves.toBeUndefined();
+    const [codexAdapter, claudeAdapter] = await Promise.all([
+      readFile(join(workspaceRoot, ".agents/skills/harness-next/SKILL.md"), "utf8"),
+      readFile(join(workspaceRoot, ".claude/skills/harness-next/SKILL.md"), "utf8"),
+    ]);
+    expect(codexAdapter).toBe(claudeAdapter);
+    expect(codexAdapter).toContain("name: harness-next");
+    expect(codexAdapter).toContain(
+      "../../../harness-next/skills/harness-next/SKILL.md",
+    );
     await expect(access(join(workspaceRoot, "harness-next/src"))).rejects.toThrow();
     expect((await stat(join(workspaceRoot, "harness-next/bin/harness-next"))).mode & 0o111).not.toBe(0);
-    expect(
-      JSON.parse(
-        await readFile(join(workspaceRoot, "harness-next/installation.json"), "utf8"),
-      ),
-    ).toMatchObject({
+    const installedManifest = JSON.parse(
+      await readFile(join(workspaceRoot, "harness-next/installation.json"), "utf8"),
+    ) as {
+      schemaVersion?: number;
+      layoutVersion?: number;
+      harnessVersion?: string;
+      managedEntries?: Record<string, unknown>;
+      runtime?: { version?: string; hash?: string; stateSchemaVersion?: number };
+    };
+    expect(installedManifest).toMatchObject({
       schemaVersion: 1,
       layoutVersion: 1,
       harnessVersion: "0.1.0",
-      managedEntries: { agents: true, claude: true, gitignore: true },
+      managedEntries: {
+        agents: true,
+        claude: true,
+        gitignore: true,
+        codexSkill: true,
+        claudeSkill: true,
+      },
     });
+    expect(installedManifest.runtime?.version).toBe("0.1.0");
+    expect(installedManifest.runtime?.hash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(installedManifest.runtime?.stateSchemaVersion).toBe(1);
     expect(resolveHarnessPaths({ projectRoot: workspaceRoot })).toMatchObject({
       projectRoot: workspaceRoot,
       workspaceRoot,
@@ -107,6 +180,205 @@ describe("installHarnessProject", () => {
     expect(gitignore.match(/# harness-next:end/gu)).toHaveLength(1);
     expect(await readFile(join(workspaceRoot, "AGENTS.md"), "utf8")).toContain("原始 Agent 规则\n");
     expect(await readFile(join(workspaceRoot, "CLAUDE.md"), "utf8")).toContain("原始 Claude 规则\n");
+  });
+
+  test("重复 install 将旧版安装原地迁移为项目级 Skill", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-migration-"));
+    await installForTest(workspaceRoot);
+    const installationPath = join(workspaceRoot, "harness-next/installation.json");
+    await downgradeToLegacyInstallation(workspaceRoot);
+
+    const result = await installForTest(workspaceRoot);
+
+    expect(result.changed).toBe(true);
+    expect(result.maintainedEntries).toEqual([]);
+    await expect(
+      access(join(workspaceRoot, "harness-next/skills/harness-next/SKILL.md")),
+    ).resolves.toBeUndefined();
+    await expect(
+      access(join(workspaceRoot, ".agents/skills/harness-next/SKILL.md")),
+    ).resolves.toBeUndefined();
+    await expect(
+      access(join(workspaceRoot, ".claude/skills/harness-next/SKILL.md")),
+    ).resolves.toBeUndefined();
+    const migratedManifest = JSON.parse(await readFile(installationPath, "utf8")) as {
+      runtime?: { version?: string; hash?: string; stateSchemaVersion?: number };
+    };
+    expect(migratedManifest).toMatchObject({
+      ...legacyManifest,
+      managedEntries: {
+        ...legacyManifest.managedEntries,
+        codexSkill: true,
+        claudeSkill: true,
+      },
+    });
+    expect(migratedManifest.runtime?.version).toBe("0.1.0");
+    expect(migratedManifest.runtime?.hash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(migratedManifest.runtime?.stateSchemaVersion).toBe(1);
+  });
+
+  test("旧版安装迁移后继续重复 install 保持幂等", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-migration-idempotent-"));
+    await installForTest(workspaceRoot);
+    await downgradeToLegacyInstallation(workspaceRoot);
+    await installForTest(workspaceRoot);
+    const paths = [
+      "harness-next/installation.json",
+      "harness-next/skills/harness-next/SKILL.md",
+      ".agents/skills/harness-next/SKILL.md",
+      ".claude/skills/harness-next/SKILL.md",
+    ];
+    const before = await Promise.all(paths.map((path) => readFile(join(workspaceRoot, path), "utf8")));
+
+    const result = await installForTest(workspaceRoot);
+
+    expect(result.changed).toBe(false);
+    expect(result.maintainedEntries).toEqual([]);
+    await expect(
+      Promise.all(paths.map((path) => readFile(join(workspaceRoot, path), "utf8"))),
+    ).resolves.toEqual(before);
+  });
+
+  test("重复 install 会升级缺少 Runtime 元数据的旧安装", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-runtime-migration-"));
+    await installForTest(workspaceRoot);
+    const installationPath = join(workspaceRoot, "harness-next/installation.json");
+    const manifest = JSON.parse(await readFile(installationPath, "utf8")) as Record<string, unknown>;
+    delete manifest.runtime;
+    await writeFile(installationPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    const runtimePackagePath = join(workspaceRoot, "harness-next/runtime/package.json");
+    const runtimePackage = JSON.parse(await readFile(runtimePackagePath, "utf8")) as Record<string, unknown>;
+    runtimePackage.scripts = { test: "echo stale" };
+    await writeFile(runtimePackagePath, `${JSON.stringify(runtimePackage, null, 2)}\n`, "utf8");
+
+    const result = await installForTest(workspaceRoot);
+
+    expect(result.changed).toBe(true);
+    const upgradedRuntimePackage = JSON.parse(await readFile(runtimePackagePath, "utf8")) as {
+      scripts?: unknown;
+    };
+    expect(upgradedRuntimePackage.scripts).toBeUndefined();
+    const upgradedManifest = JSON.parse(await readFile(installationPath, "utf8")) as {
+      runtime?: { version?: string; hash?: string; stateSchemaVersion?: number };
+    };
+    expect(upgradedManifest.runtime?.version).toBe("0.1.0");
+    expect(upgradedManifest.runtime?.hash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(upgradedManifest.runtime?.stateSchemaVersion).toBe(1);
+  });
+
+  test("运行中的 Run 会阻止 Runtime 升级并保留原文件", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-runtime-running-"));
+    await installForTest(workspaceRoot);
+    const installationPath = join(workspaceRoot, "harness-next/installation.json");
+    const manifest = JSON.parse(await readFile(installationPath, "utf8")) as Record<string, unknown>;
+    delete manifest.runtime;
+    await writeFile(installationPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    const runtimePackagePath = join(workspaceRoot, "harness-next/runtime/package.json");
+    const beforeRuntime = await readFile(runtimePackagePath, "utf8");
+    await writeFile(runtimePackagePath, `${beforeRuntime}\n`, "utf8");
+    const staleRuntime = await readFile(runtimePackagePath, "utf8");
+    await mkdir(join(workspaceRoot, "harness-next/.state/runs/run-1"), { recursive: true });
+    await writeFile(
+      join(workspaceRoot, "harness-next/.state/runs/run-1/state.json"),
+      JSON.stringify({ status: "running" }),
+      "utf8",
+    );
+
+    await expect(installForTest(workspaceRoot)).rejects.toThrow(/运行中的 Run/u);
+    await expect(readFile(runtimePackagePath, "utf8")).resolves.toBe(staleRuntime);
+  });
+
+  test("旧版安装迁移遇到同名规范入口时不覆盖也不产生部分修改", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-migration-conflict-"));
+    await installForTest(workspaceRoot);
+    await downgradeToLegacyInstallation(workspaceRoot);
+    const canonicalPath = join(workspaceRoot, "harness-next/skills/harness-next/SKILL.md");
+    await mkdir(join(workspaceRoot, "harness-next/skills/harness-next"), { recursive: true });
+    await writeFile(canonicalPath, "用户定义的同名规范入口\n", "utf8");
+
+    await expect(installForTest(workspaceRoot)).rejects.toThrow(
+      /项目级 Skill 已存在且不受 Harness Next 管理/u,
+    );
+
+    await expect(readFile(canonicalPath, "utf8")).resolves.toBe("用户定义的同名规范入口\n");
+    await expect(
+      readFile(join(workspaceRoot, "harness-next/installation.json"), "utf8"),
+    ).resolves.toBe(`${JSON.stringify(legacyManifest, null, 2)}\n`);
+    await expect(
+      access(join(workspaceRoot, ".agents/skills/harness-next/SKILL.md")),
+    ).rejects.toThrow();
+    await expect(
+      access(join(workspaceRoot, ".claude/skills/harness-next/SKILL.md")),
+    ).rejects.toThrow();
+  });
+
+  test("旧版安装迁移 preflight 失败时回滚清单和项目级 Skill", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-migration-rollback-"));
+    await installForTest(workspaceRoot);
+    await downgradeToLegacyInstallation(workspaceRoot);
+    await writeFile(
+      join(workspaceRoot, "harness-next/generated/workflow-catalog.json"),
+      "{}\n",
+      "utf8",
+    );
+    const runtimePackagePath = join(workspaceRoot, "harness-next/runtime/package.json");
+    const runtimePackage = await readFile(runtimePackagePath, "utf8");
+    await writeFile(runtimePackagePath, `${runtimePackage}\n`, "utf8");
+    const staleRuntime = await readFile(runtimePackagePath, "utf8");
+
+    await expect(installForTest(workspaceRoot)).rejects.toThrow();
+
+    await expect(
+      readFile(join(workspaceRoot, "harness-next/installation.json"), "utf8"),
+    ).resolves.toBe(`${JSON.stringify(legacyManifest, null, 2)}\n`);
+    await expect(readFile(runtimePackagePath, "utf8")).resolves.toBe(staleRuntime);
+    for (const path of [
+      "harness-next/skills/harness-next/SKILL.md",
+      ".agents/skills/harness-next/SKILL.md",
+      ".claude/skills/harness-next/SKILL.md",
+    ]) {
+      await expect(access(join(workspaceRoot, path))).rejects.toThrow();
+    }
+  });
+
+  test("已有同名项目级 Skill 时拒绝覆盖且不产生部分安装", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-conflict-"));
+    const skillPath = join(workspaceRoot, ".agents/skills/harness-next/SKILL.md");
+    await mkdir(join(workspaceRoot, ".agents/skills/harness-next"), { recursive: true });
+    await writeFile(skillPath, "用户定义的 Harness Skill\n", "utf8");
+
+    await expect(installForTest(workspaceRoot)).rejects.toThrow(
+      /项目级 Skill 已存在且不受 Harness Next 管理/u,
+    );
+
+    await expect(readFile(skillPath, "utf8")).resolves.toBe("用户定义的 Harness Skill\n");
+    await expect(access(join(workspaceRoot, "harness-next"))).rejects.toThrow();
+    await expect(access(join(workspaceRoot, "AGENTS.md"))).rejects.toThrow();
+    await expect(access(join(workspaceRoot, "CLAUDE.md"))).rejects.toThrow();
+  });
+
+  test("项目级 Skill 文件位置被目录占用时拒绝安装", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-directory-"));
+    const skillPath = join(workspaceRoot, ".claude/skills/harness-next/SKILL.md");
+    await mkdir(skillPath, { recursive: true });
+
+    await expect(installForTest(workspaceRoot)).rejects.toThrow(
+      /项目级 Skill 已存在且不受 Harness Next 管理/u,
+    );
+    expect((await stat(skillPath)).isDirectory()).toBe(true);
+    await expect(access(join(workspaceRoot, "harness-next"))).rejects.toThrow();
+  });
+
+  test("重复安装不覆盖被修改的项目级 Skill Adapter", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-repeat-"));
+    await installForTest(workspaceRoot);
+    const skillPath = join(workspaceRoot, ".claude/skills/harness-next/SKILL.md");
+    await writeFile(skillPath, "用户修改的 Adapter\n", "utf8");
+
+    await expect(installForTest(workspaceRoot)).rejects.toThrow(
+      /项目级 Skill 已存在且不受 Harness Next 管理/u,
+    );
+    await expect(readFile(skillPath, "utf8")).resolves.toBe("用户修改的 Adapter\n");
   });
 
   test.each([
@@ -231,6 +503,17 @@ describe("installHarnessProject", () => {
     await writeFile(join(workspaceRoot, "AGENTS.md"), "项目规则\n", "utf8");
     await expect(checkHarnessProject({ projectRoot: workspaceRoot })).rejects.toThrow(
       /AGENTS\.md.*托管块/u,
+    );
+  });
+
+  test("preflight 在项目级 Skill Adapter 被篡改时 fail closed", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-skill-preflight-"));
+    await installForTest(workspaceRoot);
+    const adapterPath = join(workspaceRoot, ".agents/skills/harness-next/SKILL.md");
+    await writeFile(adapterPath, "用户定义的同名 Skill\n", "utf8");
+
+    await expect(checkHarnessProject({ projectRoot: workspaceRoot })).rejects.toThrow(
+      /项目级 Skill 已存在且不受 Harness Next 管理/u,
     );
   });
 

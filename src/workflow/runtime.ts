@@ -27,6 +27,12 @@ import {
   taskEntries,
   type TaskEntry,
 } from "./runtime-transition.js";
+import {
+  appendStepResult,
+  appendStepStarted,
+  appendTerminal,
+  appendTransition,
+} from "./execution-trace.js";
 
 export type StepResultStatus = "passed" | "needs_changes" | "blocked";
 
@@ -258,6 +264,7 @@ function createRunState(
     attempts: {},
     evidence: [],
     checkExecutions: [],
+    executionTrace: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -273,21 +280,21 @@ function startStep(
   const maximum = maxStepAttempts(workflow);
   if (attempt > maximum) {
     const evidence = `Step '${entry.id}' 超过最大尝试次数 ${String(maximum)}。`;
-    const blockedState: WorkflowRunState = {
+    const blockedState = appendTerminal(appendStepResult({
       ...state,
       status: "blocked",
       currentStep: null,
       evidence: [...state.evidence, evidence],
-    };
+    }, entry.id, attempt, "blocked", [evidence], []), "workflow_failed");
     return { state: blockedState, response: responseFromState(blockedState) };
   }
   const directive = directiveFor(rootDir, entry, attempt);
-  const runningState: WorkflowRunState = {
+  const runningState = appendStepStarted({
     ...state,
     status: "running",
     currentStep: { ...directive, phase: "in_progress" },
     attempts: { ...state.attempts, [entry.id]: attempt },
-  };
+  }, entry.id, attempt);
   return { state: runningState, response: responseFromState(runningState) };
 }
 
@@ -374,14 +381,16 @@ async function runStepChecks(
       checkExecutions,
     };
   } catch (error: unknown) {
-    const failedState: WorkflowRunState = {
+    const failedState = appendTerminal(appendStepResult({
       ...state,
       status: "failed",
       revision: state.revision + 1,
       currentStep: null,
       evidence: [...state.evidence, error instanceof Error ? error.message : String(error)],
       updatedAt: new Date().toISOString(),
-    };
+    }, state.currentStep?.id ?? "unknown", state.currentStep?.attempt ?? 0, "failed", [
+      error instanceof Error ? error.message : String(error),
+    ], []), "workflow_failed");
     await writeState(rootDir, failedState);
     return {
       effectiveStatus: "blocked",
@@ -394,20 +403,24 @@ async function runStepChecks(
 function progressedState(
   state: WorkflowRunState,
   result: StepResult,
+  effectiveStatus: StepResultStatus,
   checkExecutions: CheckCommandExecution[],
 ): WorkflowRunState {
   const commandEvidence = checkExecutions.map(
     (execution) =>
       `${execution.checkId}: ${execution.command} ${execution.args.join(" ")} -> ${String(execution.exitCode)}`,
   );
-  return {
+  return appendStepResult({
     ...state,
     revision: state.revision + 1,
     currentStep: null,
     evidence: [...state.evidence, ...result.evidence, ...commandEvidence],
     checkExecutions: [...state.checkExecutions, ...checkExecutions],
     updatedAt: new Date().toISOString(),
-  };
+  }, result.stepId, state.currentStep?.attempt ?? 0, effectiveStatus, [
+    ...result.evidence,
+    ...commandEvidence,
+  ], checkExecutions);
 }
 
 async function completeRun(
@@ -426,11 +439,11 @@ async function completeRun(
   if (diagnostics.length > 0) {
     throw new Error(`Workflow output 不符合 JSON Schema：${diagnostics[0]?.message ?? "未知错误"}`);
   }
-  const completedState: WorkflowRunState = {
+  const completedState = appendTerminal({
     ...state,
     status: "completed",
     ...(result.data === undefined ? {} : { output: result.data }),
-  };
+  }, "workflow_completed");
   await writeState(rootDir, completedState);
   return responseFromState(completedState, "completed", checkExecutions);
 }
@@ -462,20 +475,26 @@ async function continueWorkflowRunUnlocked(
   const outcome = await runStepChecks(rootDir, state, options.result, getChecks(currentTask.task));
   if (outcome.failedResponse !== undefined) return outcome.failedResponse;
   const { checkExecutions, effectiveStatus } = outcome;
-  const baseState = progressedState(state, options.result, checkExecutions);
+  const baseState = progressedState(state, options.result, effectiveStatus, checkExecutions);
 
   if (effectiveStatus === "blocked") {
-    const blockedState: WorkflowRunState = { ...baseState, status: "blocked" };
+    const blockedState = appendTransition({
+      ...baseState,
+      status: "blocked",
+      updatedAt: new Date().toISOString(),
+    }, options.result.stepId, effectiveStatus, null);
     await writeState(rootDir, blockedState);
     return responseFromState(blockedState, "blocked", checkExecutions);
   }
 
   const nextStep = resolveNextStep(loaded.workflow, options.result.stepId, effectiveStatus);
   if (nextStep === null) {
-    return completeRun(rootDir, loaded.workflow, baseState, options.result, checkExecutions);
+    const completedBase = appendTransition(baseState, options.result.stepId, effectiveStatus, null);
+    return completeRun(rootDir, loaded.workflow, completedBase, options.result, checkExecutions);
   }
 
-  const advanced = startStep(rootDir, baseState, loaded.workflow, nextStep);
+  const advancedBase = appendTransition(baseState, options.result.stepId, effectiveStatus, nextStep.id);
+  const advanced = startStep(rootDir, advancedBase, loaded.workflow, nextStep);
   await writeState(rootDir, advanced.state);
   return {
     ...advanced.response,
@@ -500,14 +519,14 @@ async function cancelWorkflowRunUnlocked(
   if (state.status === "completed" || state.status === "cancelled" || state.status === "failed") {
     throw new Error(`Workflow Run 已结束：${state.status}`);
   }
-  const cancelledState: WorkflowRunState = {
+  const cancelledState = appendTerminal({
     ...state,
     status: "cancelled",
     revision: state.revision + 1,
     currentStep: null,
     evidence: [...state.evidence, options.reason],
     updatedAt: new Date().toISOString(),
-  };
+  }, "workflow_cancelled");
   await writeState(rootDir, cancelledState);
   return responseFromState(cancelledState);
 }

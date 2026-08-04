@@ -13,11 +13,15 @@
 
 ## 项目本地安装
 
-`install` 将发布载荷原子安装到业务项目的 `harness-next/`。Project Root 与默认 Workspace Root 是业务项目根，Harness Root 是 `<project>/harness-next`，Runtime Root 是 `<harness>/runtime`，State Root 是 `<harness>/.state`。`installation.json` 只保存布局和版本，不保存机器绝对路径。
+`install` 将发布载荷原子安装到业务项目的 `harness-next/`。Project Root 与默认 Workspace Root 是业务项目根，Harness Root 是 `<project>/harness-next`，Runtime Root 是 `<harness>/runtime`，State Root 是 `<harness>/.state`。`installation.json` 保存布局、版本和 Runtime 内容哈希，不保存机器绝对路径。
 
-安装 Module 通过 `installHarnessProject()`、`checkHarnessProject()` 和 `resolveHarnessPaths()` 三个 Interface 隐藏载荷复制、Runtime 生产依赖恢复、托管块校验、幂等规则、Catalog 激活和 Root 推导。安装器先在 Project Root 内创建临时目录，完成 Runtime、资产、启动器、清单和 Catalog 后再移动到 `harness-next/`。
+安装 Module 通过 `installHarnessProject()`、`checkHarnessProject()` 和 `resolveHarnessPaths()` 三个 Interface 隐藏载荷复制、Runtime 生产依赖恢复、托管块校验、项目 Skill Adapter、幂等规则、Catalog 激活和 Root 推导。安装器先在 Project Root 内创建临时目录，完成 Runtime、资产、启动器、清单和 Catalog 后再移动到 `harness-next/`。
 
 `AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 仍归业务项目所有。安装器只替换唯一的版本化托管块；缺失半边、重复标记、目录或不可读写文件都会使安装失败，不猜测、不合并。
+
+Codex 与 Claude Code 分别通过 `.agents/skills/harness-next/SKILL.md` 和 `.claude/skills/harness-next/SKILL.md` 发现项目入口。两个安装器管理的 Adapter 内容相同，只加载 `harness-next/skills/harness-next/SKILL.md`；规范入口再进入 `workflow-router`。Workflow、Transition 和 Step Skill 的事实源仍全部位于 Harness Root，Adapter 不复制规则，也不能直接执行内部 Step Skill。
+
+项目 Skill 没有改变 Harness Root 或 Runtime 路径契约，因此安装清单继续使用 `layoutVersion: 1`。同一个 `install` Interface 会识别缺少 `codexSkill`、`claudeSkill` 或 Runtime 元数据的早期清单，补齐规范入口、Adapter 和生产 Runtime。迁移先校验冲突；Runtime 替换、项目入口和清单更新在同一事务中完成，运行中的 Run 会阻断替换，并在校验失败时回滚本次修改。
 
 ## 模块结构
 
@@ -36,7 +40,7 @@ workflow.yaml ──► compileWorkflow() ──► 标准校验、静态图、M
                     harness-next/.state/runs/<run-id>/state.json
 ```
 
-`compileWorkflow()` 是静态编译 Interface。Runtime 使用 `start / continue / cancel` 作为小 Interface，调用方不需要理解 YAML 解析、Transition、状态文件、Hash、Revision 和 Cycle 计数。
+`compileWorkflow()` 是静态编译 Interface。Runtime 使用 `start / continue / cancel` 作为小 Interface，调用方不需要理解 YAML 解析、Transition、状态文件、执行 trace、Hash、Revision 和 Cycle 计数。`report` 只读取已保存的 Run trace 生成摘要，不成为第二份流程事实源。
 
 `workflow:sync` 扫描全部 Workflow，并以全量模式覆盖 Catalog。`workflow:activate` 读取人工维护的 `harness/workflow-activation.yaml`，仅将声明的入口 Workflow 和递归前置依赖写入同一份 Catalog。Catalog 的 `entryWorkflows` 是 Router 的唯一候选范围；其余保留项只用于解析依赖。
 
@@ -121,7 +125,7 @@ data: {} # 可选业务数据
 - `listen`、`emit` 等事件 Task；
 - `for`、`fork`、`try` 的本地执行；
 - 外部 Agent 调用；
-- Codex、Claude Code 等宿主 Hook；
+- Codex、Claude Code 等宿主生命周期 Hook；
 - 多 Agent 并发、Scheduler、Queue 和远程执行；
 - 除状态比较外的运行时表达式求值。
 
