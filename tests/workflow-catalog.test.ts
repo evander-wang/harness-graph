@@ -83,11 +83,19 @@ describe("syncWorkflowCatalog", () => {
     await expect(readFile(join(harnessRoot, "generated/workflow-catalog.json"), "utf8")).resolves.toContain("installed-example");
   });
 
-  test("Node.js TypeScript 开发 Workflow 声明单节点标准 Workflow 为前置依赖", async () => {
+  test("修改类 Workflow 组合通用执行协议和领域前置依赖", async () => {
     const rootDir = resolve(import.meta.dirname, "..");
+    const policy = await compileWorkflow({
+      rootDir,
+      workflowPath: join(rootDir, "harness/workflows/change-execution-policy/workflow.yaml"),
+    });
     const development = await compileWorkflow({
       rootDir,
       workflowPath: join(rootDir, "harness/workflows/node-typescript-development/workflow.yaml"),
+    });
+    const projectConfiguration = await compileWorkflow({
+      rootDir,
+      workflowPath: join(rootDir, "harness/workflows/node-project-configuration/workflow.yaml"),
     });
     const standards = await compileWorkflow({
       rootDir,
@@ -97,10 +105,41 @@ describe("syncWorkflowCatalog", () => {
     const developmentEntry = catalog.workflows.find(
       (entry) => entry.name === "node-typescript-development",
     );
+    const projectConfigurationEntry = catalog.workflows.find(
+      (entry) => entry.name === "node-project-configuration",
+    );
 
+    expect(policy.ok).toBe(true);
+    expect(policy.workflow?.do).toEqual([
+      {
+        "load-change-execution-policy": {
+          call: "load-change-execution-policy",
+          then: "end",
+        },
+      },
+    ]);
     expect(development.ok).toBe(true);
     expect(development.workflow?.do[0]).toMatchObject({
       "analyze-change": { call: "analyze-node-change" },
+    });
+    expect(projectConfiguration.ok).toBe(true);
+    expect(projectConfiguration.workflow?.do[0]).toMatchObject({
+      "analyze-project": {
+        metadata: {
+          harness: {
+            checks: ["change-plan-ready", "node-project-plan-ready"],
+          },
+        },
+      },
+    });
+    expect(projectConfiguration.workflow?.do[5]).toMatchObject({
+      "review-project": {
+        metadata: {
+          harness: {
+            checks: ["change-review-result", "node-project-review-result"],
+          },
+        },
+      },
     });
     expect(standards.ok).toBe(true);
     expect(standards.workflow?.do).toHaveLength(1);
@@ -110,7 +149,21 @@ describe("syncWorkflowCatalog", () => {
         then: "end",
       },
     });
-    expect(developmentEntry?.prerequisites).toEqual(["node-typescript-standards"]);
+    expect(developmentEntry?.prerequisites).toEqual([
+      "change-execution-policy",
+      "node-typescript-standards",
+    ]);
+    expect(projectConfigurationEntry?.prerequisites).toEqual([
+      "change-execution-policy",
+    ]);
+    const policySkill = await readFile(
+      join(rootDir, "skills/load-change-execution-policy/SKILL.md"),
+      "utf8",
+    );
+    expect(policySkill).toContain("第一次写入前");
+    expect(policySkill).toContain("修改已有文件前");
+    expect(policySkill).toContain("适用测试");
+    expect(policySkill).toContain("成功证据");
     const standardGuide = await readFile(
       join(rootDir, "harness/workflows/node-typescript-standards/STANDARDS.md"),
       "utf8",

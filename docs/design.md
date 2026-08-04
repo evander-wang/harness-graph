@@ -10,6 +10,7 @@
 2. 自定义 `call` 映射本地 Skill，`metadata.harness.checks` 绑定本地 Check。
 3. Open Workflow SDK 只作为内部实现依赖，不把 SDK 类型扩散到 CLI 和目录约定。
 4. 所有 Workflow、Skill、Check 和 Model 都从 Harness Root 读取，目标 Workspace 只允许本地目录，不访问远程执行目标。
+5. 修改类入口 Workflow 通过前置 Workflow 组合通用执行协议和语言 Standards；入口只维护路由与 Transition，不复制前置规则。
 
 ## 项目本地安装
 
@@ -43,6 +44,10 @@ workflow.yaml ──► compileWorkflow() ──► 标准校验、静态图、M
 `compileWorkflow()` 是静态编译 Interface。Runtime 使用 `start / continue / cancel` 作为小 Interface，调用方不需要理解 YAML 解析、Transition、状态文件、执行 trace、Hash、Revision 和 Cycle 计数。`report` 只读取已保存的 Run trace 生成摘要，不成为第二份流程事实源。
 
 `workflow:sync` 扫描全部 Workflow，并以全量模式覆盖 Catalog。`workflow:activate` 读取人工维护的 `harness/workflow-activation.yaml`，仅将声明的入口 Workflow 和递归前置依赖写入同一份 Catalog。Catalog 的 `entryWorkflows` 是 Router 的唯一候选范围；其余保留项只用于解析依赖。
+
+`change-execution-policy` 是所有修改类入口共享的非入口前置 Workflow。它通过单个 Skill 加载跨语言执行协议；Node.js、Rust、Go 等语言 Standards 作为并列前置依赖。Catalog 负责校验依赖存在和无环，Router 负责递归去重、顺序执行和恢复时重载上下文。
+
+通用计划和 Review Check 可以与领域 Check 组合在同一 Step。通用 Check 检查计划、范围和证据，领域 Check 只检查 Profile、工具链或语言规则；二者仍返回同一套标准状态，不引入新的结果模型。
 
 Mermaid 和 SVG Renderer 使用同一个 `FlatGraph`。SVG 使用 Dagre 在本地完成布局，不依赖浏览器或远程渲染服务。
 
@@ -95,6 +100,7 @@ data: {} # 可选业务数据
 - 一个 Worktree 同时只允许一个 `running` Run。
 - Runtime 返回 Step 前已经把它记录为 `in_progress`。
 - 重复启动或无结果调用 `continue` 返回 `interrupted`，Router 必须先核对工作区，不能直接重做。
+- 当前 Step 缺少可由用户补充的决定时，Router 不写 Step Result，也不调用 `continue`；它保持 Step 为 `in_progress` 并询问，回答后复用相同 Run。只有无法通过回答继续时才提交 `blocked`。
 - Step Result 必须匹配 `runId`、`revision` 和当前 `stepId`。
 - Run 固定 Workflow Version 和 Source Hash，Workflow 改变后拒绝继续。
 - Run 固化 Workspace Root，恢复时不能切换目标项目目录。

@@ -208,7 +208,7 @@ Node.js TypeScript 工作流适用于新增或修改功能、修复缺陷和重�
 
 也可以使用 Alias `nodejs-development` 或 `typescript-development`。没有明确指定名称时，Router 会根据请求内容和 Catalog 中的适用、排除场景选择 Workflow；无法得到唯一候选时会停止并报告，不会自行猜测。
 
-Router 选中 `harness-next/workflows/node-typescript-development/workflow.yaml` 后，会先完成其前置的 `node-typescript-standards` Workflow。该 Workflow 只有一个节点，负责将完整规范加载到当前 Agent 上下文；随后才进入开发流程：
+Router 选中 `harness-next/workflows/node-typescript-development/workflow.yaml` 后，会先完成两个前置 Workflow：`change-execution-policy` 加载所有修改类任务共享的计划、范围和证据协议，`node-typescript-standards` 加载 Node.js TypeScript 规范；随后才进入开发流程：
 
 | 阶段 | 执行内容 | 未通过时 |
 | --- | --- | --- |
@@ -258,17 +258,19 @@ npm run build
 npm run doctor
 npm run workflow:activate
 npm run workflow:sync
+npm run workflow:validate -- harness/workflows/change-execution-policy/workflow.yaml
 npm run workflow:validate -- harness/workflows/node-typescript-standards/workflow.yaml
 npm run workflow:validate -- harness/workflows/node-typescript-development/workflow.yaml
 npm run workflow:validate -- harness/workflows/node-project-configuration/workflow.yaml
 npm run workflow:diagram -- harness/workflows/node-typescript-standards/workflow.yaml
+npm run workflow:image -- harness/workflows/change-execution-policy/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-standards/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml --expand-prerequisites
 npm run workflow:image -- harness/workflows/node-project-configuration/workflow.yaml
 ```
 
-可运行示例包括 [node-typescript-standards/workflow.yaml](./harness/workflows/node-typescript-standards/workflow.yaml)、[node-typescript-development/workflow.yaml](./harness/workflows/node-typescript-development/workflow.yaml) 和 [node-project-configuration/workflow.yaml](./harness/workflows/node-project-configuration/workflow.yaml)。
+可运行示例包括 [change-execution-policy/workflow.yaml](./harness/workflows/change-execution-policy/workflow.yaml)、[node-typescript-standards/workflow.yaml](./harness/workflows/node-typescript-standards/workflow.yaml)、[node-typescript-development/workflow.yaml](./harness/workflows/node-typescript-development/workflow.yaml) 和 [node-project-configuration/workflow.yaml](./harness/workflows/node-project-configuration/workflow.yaml)。前两个是非入口前置 Workflow，不能由用户直接路由。
 
 ## Workflow 激活范围
 

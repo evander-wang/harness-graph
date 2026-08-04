@@ -28,11 +28,12 @@ description: 从 Workflow Catalog 选择并自动执行当前工作区的本地 
 5. 自动执行 `./harness-next/bin/harness-next start <workflow-path> <execution-key> <input-json>`。
 6. 只加载返回的 `step.skillPath`、`step.checkPaths` 和必要输入。
 7. 执行当前 Skill 和需要 Agent 判断的 Check。
-8. 将 `runId`、`revision`、`stepId`、`status`、`evidence` 和可选 `data` 写成 Step Result JSON。
-9. 将结果写到 `harness-next/.state/tmp/`，自动执行 `./harness-next/bin/harness-next continue <run-id> <result-json>`。
-10. 返回下一个 Step 时重复第 6-9 步；`completed` 时进入执行摘要询问；`blocked`、`failed` 或 `cancelled` 时停止并输出必要的失败摘要。
-11. Workflow `completed` 后，如果当前宿主支持与用户交互，先询问：`是否输出本次 Workflow 执行摘要（Workflow、Step、Transition 和 Check）？` 用户确认后执行 `./harness-next/bin/harness-next report <run-id> --format markdown` 并交付结果；用户拒绝时不输出详细报告。
-12. 无法交互时不询问，只保留 Runtime 已保存的 `executionTrace`；不得因为无法询问而改变 Workflow 结果。
+8. 当前 Skill 或 Check 缺少可由用户补充的决定、授权或选择时，保持当前 Step 为 `in_progress`，不写 Step Result，也不执行 `continue`。向用户提出最小必要问题；用户回答后复用相同的 `executionKey`、`runId` 和 `revision` 继续当前 Step。只有无法通过用户回答继续时才提交 `blocked`。
+9. 将 `runId`、`revision`、`stepId`、`status`、`evidence` 和可选 `data` 写成 Step Result JSON。
+10. 将结果写到 `harness-next/.state/tmp/`，自动执行 `./harness-next/bin/harness-next continue <run-id> <result-json>`。
+11. 返回下一个 Step 时重复第 6-10 步；`completed` 时进入执行摘要询问；`blocked`、`failed` 或 `cancelled` 时停止并输出必要的失败摘要。
+12. Workflow `completed` 后，如果当前宿主支持与用户交互，先询问：`是否输出本次 Workflow 执行摘要（Workflow、Step、Transition 和 Check）？` 用户确认后执行 `./harness-next/bin/harness-next report <run-id> --format markdown` 并交付结果；用户拒绝时不输出详细报告。
+13. 无法交互时不询问，只保留 Runtime 已保存的 `executionTrace`；不得因为无法询问而改变 Workflow 结果。
 
 Runtime 返回 `interrupted` 时，不得直接重做 Step。先检查工作区现状和已有证据，再提交继续、返工或阻塞结果。
 

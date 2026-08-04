@@ -1,0 +1,16 @@
+document:
+  dsl: "1.0.3"
+  namespace: harness-next
+  name: change-execution-policy
+  version: "1.0.0"
+  title: 本地变更执行协议
+  summary: 在修改类 Workflow 前加载跨语言的计划、读取、询问、范围和验证约束。
+  metadata:
+    harness:
+      execution:
+        maxStepAttempts: 1
+
+do:
+  - load-change-execution-policy:
+      call: load-change-execution-policy
+      then: end
