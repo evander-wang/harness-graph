@@ -86,7 +86,7 @@ describe("validateWorkflowData", () => {
   });
 
   test("外部 Schema 可以通过 harness URI 复用另一个 Model", async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), "harness-next-schema-ref-"));
+    const rootDir = await mkdtemp(join(tmpdir(), "harness-graph-schema-ref-"));
     const workflowPath = join(rootDir, "harness/workflows/example/workflow.yaml");
     await mkdir(join(rootDir, "harness/workflows/example"), { recursive: true });
     await mkdir(join(rootDir, "harness/models"), { recursive: true });
@@ -120,7 +120,7 @@ describe("validateWorkflowData", () => {
       workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: schema-reference
   version: "0.1.0"
 output:
@@ -156,7 +156,7 @@ do:
   });
 
   test("使用外部 JSON Schema 校验 Workflow 输入和输出", async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), "harness-next-data-"));
+    const rootDir = await mkdtemp(join(tmpdir(), "harness-graph-data-"));
     const workflowPath = join(rootDir, "harness/workflows/example/workflow.yaml");
 
     await mkdir(join(rootDir, "harness/workflows/example"), { recursive: true });
@@ -189,7 +189,7 @@ do:
       workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: data-validation
   version: "0.1.0"
 input:

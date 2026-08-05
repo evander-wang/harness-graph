@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 import { compileWorkflow } from "../src/workflow/compiler.js";
 
 async function createValidProject(): Promise<{ rootDir: string; workflowPath: string }> {
-  const rootDir = await mkdtemp(join(tmpdir(), "harness-next-"));
+  const rootDir = await mkdtemp(join(tmpdir(), "harness-graph-"));
   const workflowPath = join(rootDir, "harness/workflows/example-workflow/workflow.yaml");
 
   await mkdir(join(rootDir, "harness/workflows/example-workflow"), { recursive: true });
@@ -19,7 +19,7 @@ async function createValidProject(): Promise<{ rootDir: string; workflowPath: st
     workflowPath,
     `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: example-workflow
   version: "0.1.0"
 do:
@@ -94,7 +94,7 @@ describe("compileWorkflow", () => {
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: unreachable-step
   version: "0.1.0"
 do:
@@ -127,7 +127,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: no-terminal-path
   version: "0.1.0"
 do:
@@ -160,7 +160,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: skill-playbook
   version: "0.1.0"
 do:
@@ -182,7 +182,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: unchecked-branch
   version: "0.1.0"
 do:
@@ -216,7 +216,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: remote-call
   version: "0.1.0"
 do:
@@ -241,7 +241,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: review-cycle
   version: "0.1.0"
 do:
@@ -284,7 +284,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: scheduled-workflow
   version: "0.1.0"
 schedule:
@@ -313,7 +313,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: unsupported-task
   version: "0.1.0"
 do:
@@ -336,7 +336,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: unsupported-condition
   version: "0.1.0"
 do:
@@ -369,7 +369,7 @@ do:
       project.workflowPath,
       `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: invalid-attempts
   version: "0.1.0"
   metadata:

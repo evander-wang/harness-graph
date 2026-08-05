@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
+import { HARNESS_ROOT_DIRECTORY } from "./layout.js";
+
 export type HarnessPaths = {
   projectRoot: string;
   workspaceRoot: string;
@@ -67,7 +69,7 @@ function developmentPaths(rootDir: string): HarnessPaths {
 export function resolveHarnessPaths(options: ResolveHarnessPathsOptions): HarnessPaths {
   if (options.projectRoot !== undefined) {
     const projectRoot = resolve(options.projectRoot);
-    return installedPaths(projectRoot, join(projectRoot, "harness-next"));
+    return installedPaths(projectRoot, join(projectRoot, HARNESS_ROOT_DIRECTORY));
   }
   if (options.harnessRoot !== undefined) {
     const harnessRoot = resolve(options.harnessRoot);

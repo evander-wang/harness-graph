@@ -8,12 +8,12 @@
   "workflows": [
     {
       "name": "change-execution-policy",
-      "namespace": "harness-next",
+      "namespace": "harness-graph",
       "version": "1.0.0",
       "title": "本地变更执行协议",
       "summary": "在修改类 Workflow 前加载跨语言的计划、读取、询问、范围和验证约束。",
       "path": "harness/workflows/change-execution-policy/workflow.yaml",
-      "sourceHash": "sha256:c36dbce31cce6294a302bceff9eafe8d4e5b06999d723317c9f504287acac7c5",
+      "sourceHash": "sha256:7eb0a5f83b986671b35cd38e1dcd91d6b184f29ee856f4b6ba3215e712fad6e8",
       "routing": {
         "aliases": [],
         "when": [],
@@ -23,12 +23,12 @@
     },
     {
       "name": "node-project-configuration",
-      "namespace": "harness-next",
+      "namespace": "harness-graph",
       "version": "0.2.0",
       "title": "Node.js TypeScript 项目配置",
       "summary": "初始化新的 Node.js TypeScript 项目，或规范化当前已有项目的工程配置。",
       "path": "harness/workflows/node-project-configuration/workflow.yaml",
-      "sourceHash": "sha256:6bc5a9f302ca7f610ea148173c1bc6856fd434f9f10ae4b26292a7f7451455f3",
+      "sourceHash": "sha256:767cd37e7b6bc5ba0f277662feba17cefd84dddb303c2ea555e45c31578d2a91",
       "routing": {
         "aliases": [
           "node-project-setup",
@@ -53,12 +53,12 @@
     },
     {
       "name": "node-typescript-development",
-      "namespace": "harness-next",
+      "namespace": "harness-graph",
       "version": "0.5.0",
       "title": "Node.js TypeScript 开发",
       "summary": "分析、实现、验证、审查并交付当前工作区的 Node.js TypeScript 变更。",
       "path": "harness/workflows/node-typescript-development/workflow.yaml",
-      "sourceHash": "sha256:ec2c8904b03938b2968bb4df8c02bda6e449d04bd6cf76ae8a4a37c2ea99a351",
+      "sourceHash": "sha256:2e7abed3bbe91ffac41f15890934338ca0513fbc5356c9d4b935021e953c3986",
       "routing": {
         "aliases": [
           "nodejs-development",
@@ -81,12 +81,12 @@
     },
     {
       "name": "node-typescript-standards",
-      "namespace": "harness-next",
+      "namespace": "harness-graph",
       "version": "1.0.0",
       "title": "Node.js TypeScript 开发规范",
       "summary": "在 Node.js TypeScript 开发前将完整规范加载到当前 Agent 上下文。",
       "path": "harness/workflows/node-typescript-standards/workflow.yaml",
-      "sourceHash": "sha256:7bfd59cb8d9db298b4df6f96690224045e4a920fe54186f09e52b75a70546df3",
+      "sourceHash": "sha256:f480da059f6d8e90e3c2f8fb237c04d54d10615a99778bc6ae8c2b7784bcb205",
       "routing": {
         "aliases": [],
         "when": [],

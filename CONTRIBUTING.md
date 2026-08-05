@@ -1,4 +1,4 @@
-# Harness Next 贡献指南
+# Harness Graph 贡献指南
 
 ## 修改前
 
@@ -35,7 +35,7 @@ npm run doctor
 | Step 和 Transition | 对应的 `workflow.yaml` |
 | Step 执行方法 | `skills/<skill-id>/SKILL.md` |
 | 通用修改协议 | `skills/load-change-execution-policy/SKILL.md`；入口 Workflow 只声明 prerequisite |
-| 项目 Skill 规范入口 | `skills/harness-next/SKILL.md`；宿主 Adapter 由安装器生成 |
+| 项目 Skill 规范入口 | `skills/harness-graph/SKILL.md`；宿主 Adapter 由安装器生成 |
 | Step 验收规则 | `harness/checks/<check-id>/CHECK.md` |
 | Workflow 路由索引 | 维护 `harness/workflow-activation.yaml`，执行 `npm run workflow:activate`，禁止手工修改 Catalog |
 | 本地运行状态和跳转 | `src/workflow/runtime.ts` |
@@ -46,7 +46,7 @@ npm run doctor
 | CLI | `src/cli.ts` |
 | 项目本地安装、preflight 和 Root 推导 | `src/installation/` |
 
-发布资产仍从本仓库的 `harness/` 和 `skills/` 读取；安装器把它们复制到业务项目的 `harness-next/`，不能在安装代码中维护第二份 Workflow、Model、Check 或 Skill 清单。`workflow-activation.yaml` 中的入口路径相对 Harness Root，使用 `workflows/<name>/workflow.yaml`。
+发布资产仍从本仓库的 `harness/` 和 `skills/` 读取；安装器把它们复制到业务项目的 `harness-graph/`，不能在安装代码中维护第二份 Workflow、Model、Check 或 Skill 清单。`workflow-activation.yaml` 中的入口路径相对 Harness Root，使用 `workflows/<name>/workflow.yaml`。
 
 Runtime 发布包由 `src/installation/runtime-package.ts` 投影：只保留运行所需生产依赖，并在安装时生成专用生产 Lockfile；`src/installation/runtime.ts` 负责 Runtime 内容哈希。Runtime 版本或实现变化时，必须补充安装测试覆盖首次安装、重复 install、运行中 Run 阻断和失败回滚。执行 trace 和报告必须统一从 Runtime/Report 模块生成，不能在各个 Workflow 或 Step Skill 中重复实现。
 

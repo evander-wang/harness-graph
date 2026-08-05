@@ -13,8 +13,8 @@ async function createInstalledLayout(): Promise<{
   harnessRoot: string;
   workflowPath: string;
 }> {
-  const projectRoot = await mkdtemp(join(tmpdir(), "harness-next-installed-"));
-  const harnessRoot = join(projectRoot, "harness-next");
+  const projectRoot = await mkdtemp(join(tmpdir(), "harness-graph-installed-"));
+  const harnessRoot = join(projectRoot, "harness-graph");
   const workflowPath = join(harnessRoot, "workflows/example/workflow.yaml");
   await mkdir(join(harnessRoot, "workflows/example"), { recursive: true });
   await mkdir(join(harnessRoot, "models"), { recursive: true });
@@ -40,7 +40,7 @@ async function createInstalledLayout(): Promise<{
     workflowPath,
     `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: installed-example
   version: "1.0.0"
 input:
@@ -74,7 +74,7 @@ describe("installed Harness layout", () => {
         path: "workflows/example/workflow.yaml",
       }),
     ]);
-    expect(started.step?.skillPath).toBe("harness-next/skills/run-example/SKILL.md");
+    expect(started.step?.skillPath).toBe("harness-graph/skills/run-example/SKILL.md");
     await expect(
       readFile(join(harnessRoot, ".state/runs", started.runId, "state.json"), "utf8"),
     ).resolves.toContain('"workspaceRoot"');

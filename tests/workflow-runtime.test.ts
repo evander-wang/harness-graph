@@ -63,7 +63,7 @@ commands:
     workflowPath,
     `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: runtime-test
   version: "0.1.0"
   metadata:

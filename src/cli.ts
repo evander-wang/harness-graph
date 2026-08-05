@@ -67,14 +67,14 @@ async function exists(path: string): Promise<boolean> {
 
 function printUsage(io: CliIo): void {
   io.stderr(
-    "用法：harness-next " +
+    "用法：harness-graph " +
       "<install|preflight|route|doctor|project-check|node-policy-check|validate|diagram|image|" +
       "sync|activate|start|continue|cancel|report> [...args]",
   );
 }
 
 function commandPaths(io: CliIo): HarnessPaths {
-  const explicitHarnessRoot = process.env.HARNESS_NEXT_ROOT;
+  const explicitHarnessRoot = process.env.HARNESS_GRAPH_ROOT;
   if (explicitHarnessRoot !== undefined) {
     return resolveHarnessPaths({ harnessRoot: explicitHarnessRoot });
   }
@@ -475,7 +475,7 @@ async function routeCommand(io: CliIo): Promise<number> {
     });
     const paths = commandPaths(io);
     io.stdout(JSON.stringify({
-      kind: "harness-next.router-directive",
+      kind: "harness-graph.router-directive",
       routerSkillPath: relative(
         paths.projectRoot,
         join(paths.skillsRoot, "workflow-router/SKILL.md"),

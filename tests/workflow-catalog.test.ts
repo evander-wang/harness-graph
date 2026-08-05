@@ -32,7 +32,7 @@ async function writeWorkflow(
     join(workflowDirectory, "workflow.yaml"),
     `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: ${options.name}
   version: "0.1.0"
   title: ${options.title}
@@ -65,14 +65,14 @@ entryWorkflowPaths:\n${entryWorkflowPaths.map((path) => `  - ${path}`).join("\n"
 
 describe("syncWorkflowCatalog", () => {
   test("安装布局从扁平资产目录生成 Catalog", async () => {
-    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-next-installed-catalog-"));
-    const harnessRoot = join(workspaceRoot, "harness-next");
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-graph-installed-catalog-"));
+    const harnessRoot = join(workspaceRoot, "harness-graph");
     await mkdir(join(harnessRoot, "workflows/example"), { recursive: true });
     await mkdir(join(harnessRoot, "skills/run-example"), { recursive: true });
     await writeFile(join(harnessRoot, "skills/run-example/SKILL.md"), "# 执行\n");
     await writeFile(
       join(harnessRoot, "workflows/example/workflow.yaml"),
-      `document:\n  dsl: "1.0.3"\n  namespace: harness-next\n  name: installed-example\n  version: "1.0.0"\n  metadata:\n    harness:\n      routing:\n        aliases: []\n        when: [开发]\n        notWhen: []\ndo:\n  - run-example:\n      call: run-example\n      then: end\n`,
+      `document:\n  dsl: "1.0.3"\n  namespace: harness-graph\n  name: installed-example\n  version: "1.0.0"\n  metadata:\n    harness:\n      routing:\n        aliases: []\n        when: [开发]\n        notWhen: []\ndo:\n  - run-example:\n      call: run-example\n      then: end\n`,
     );
 
     const result = await syncWorkflowCatalog({ rootDir: harnessRoot });

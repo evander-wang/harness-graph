@@ -1,12 +1,12 @@
 {
-  "name": "harness-next",
+  "name": "harness-graph",
   "version": "0.1.0",
   "private": true,
   "description": "面向本地编码 Agent 的声明式 Workflow 编译与校验工具。",
   "type": "module",
   "packageManager": "npm@11.3.0",
   "bin": {
-    "harness-next": "./dist/cli.js"
+    "harness-graph": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
