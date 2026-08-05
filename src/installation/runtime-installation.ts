@@ -9,7 +9,6 @@ import { hashRuntimeArtifacts } from "./runtime.js";
 export const RUNTIME_ENTRIES = [
   ["dist", "runtime/dist"],
   ["package.json", "runtime/package.json"],
-  ["package-lock.json", "runtime/package-lock.json"],
 ] as const;
 
 export type StagedRuntime = {

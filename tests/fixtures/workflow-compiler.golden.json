@@ -1,0 +1,350 @@
+[
+  {
+    "path": "harness/workflows/change-execution-policy/workflow.yaml",
+    "document": {
+      "dsl": "1.0.3",
+      "namespace": "harness-graph",
+      "name": "change-execution-policy",
+      "version": "1.0.0"
+    },
+    "nodes": [
+      {
+        "id": "end",
+        "type": "end",
+        "checks": []
+      },
+      {
+        "id": "load-change-execution-policy",
+        "type": "call",
+        "call": "load-change-execution-policy",
+        "checks": []
+      },
+      {
+        "id": "start",
+        "type": "start",
+        "checks": []
+      }
+    ],
+    "transitions": [
+      {
+        "from": "load-change-execution-policy",
+        "to": "end",
+        "label": ""
+      },
+      {
+        "from": "start",
+        "to": "load-change-execution-policy",
+        "label": ""
+      }
+    ]
+  },
+  {
+    "path": "harness/workflows/node-project-configuration/workflow.yaml",
+    "document": {
+      "dsl": "1.0.3",
+      "namespace": "harness-graph",
+      "name": "node-project-configuration",
+      "version": "0.2.0"
+    },
+    "nodes": [
+      {
+        "id": "analyze-project",
+        "type": "call",
+        "call": "analyze-node-project",
+        "checks": [
+          "change-plan-ready",
+          "node-project-plan-ready"
+        ]
+      },
+      {
+        "id": "configure-project",
+        "type": "call",
+        "call": "configure-node-project",
+        "checks": []
+      },
+      {
+        "id": "decide-plan",
+        "type": "switch",
+        "checks": []
+      },
+      {
+        "id": "decide-quality",
+        "type": "switch",
+        "checks": []
+      },
+      {
+        "id": "decide-review",
+        "type": "switch",
+        "checks": []
+      },
+      {
+        "id": "deliver-project",
+        "type": "call",
+        "call": "deliver-node-project-configuration",
+        "checks": []
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "checks": []
+      },
+      {
+        "id": "review-project",
+        "type": "call",
+        "call": "review-node-project-configuration",
+        "checks": [
+          "change-review-result",
+          "node-project-review-result"
+        ]
+      },
+      {
+        "id": "start",
+        "type": "start",
+        "checks": []
+      },
+      {
+        "id": "verify-project",
+        "type": "call",
+        "call": "verify-node-project",
+        "checks": [
+          "node-project-quality-gate"
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "from": "analyze-project",
+        "to": "decide-plan",
+        "label": ""
+      },
+      {
+        "from": "configure-project",
+        "to": "verify-project",
+        "label": ""
+      },
+      {
+        "from": "decide-plan",
+        "to": "analyze-project",
+        "label": "needs-changes"
+      },
+      {
+        "from": "decide-plan",
+        "to": "configure-project",
+        "label": "passed"
+      },
+      {
+        "from": "decide-quality",
+        "to": "configure-project",
+        "label": "needs-changes"
+      },
+      {
+        "from": "decide-quality",
+        "to": "review-project",
+        "label": "passed"
+      },
+      {
+        "from": "decide-review",
+        "to": "configure-project",
+        "label": "needs-changes"
+      },
+      {
+        "from": "decide-review",
+        "to": "deliver-project",
+        "label": "passed"
+      },
+      {
+        "from": "deliver-project",
+        "to": "end",
+        "label": ""
+      },
+      {
+        "from": "review-project",
+        "to": "decide-review",
+        "label": ""
+      },
+      {
+        "from": "start",
+        "to": "analyze-project",
+        "label": ""
+      },
+      {
+        "from": "verify-project",
+        "to": "decide-quality",
+        "label": ""
+      }
+    ]
+  },
+  {
+    "path": "harness/workflows/node-typescript-development/workflow.yaml",
+    "document": {
+      "dsl": "1.0.3",
+      "namespace": "harness-graph",
+      "name": "node-typescript-development",
+      "version": "0.5.0"
+    },
+    "nodes": [
+      {
+        "id": "analyze-change",
+        "type": "call",
+        "call": "analyze-node-change",
+        "checks": [
+          "change-plan-ready"
+        ]
+      },
+      {
+        "id": "decide-plan",
+        "type": "switch",
+        "checks": []
+      },
+      {
+        "id": "decide-quality",
+        "type": "switch",
+        "checks": []
+      },
+      {
+        "id": "decide-review",
+        "type": "switch",
+        "checks": []
+      },
+      {
+        "id": "deliver-result",
+        "type": "call",
+        "call": "deliver-node-change",
+        "checks": []
+      },
+      {
+        "id": "end",
+        "type": "end",
+        "checks": []
+      },
+      {
+        "id": "implement-change",
+        "type": "call",
+        "call": "implement-node-change",
+        "checks": []
+      },
+      {
+        "id": "review-change",
+        "type": "call",
+        "call": "review-node-change",
+        "checks": [
+          "change-review-result"
+        ]
+      },
+      {
+        "id": "start",
+        "type": "start",
+        "checks": []
+      },
+      {
+        "id": "verify-change",
+        "type": "call",
+        "call": "verify-node-change",
+        "checks": [
+          "node-quality-gate"
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "from": "analyze-change",
+        "to": "decide-plan",
+        "label": ""
+      },
+      {
+        "from": "decide-plan",
+        "to": "analyze-change",
+        "label": "needs-changes"
+      },
+      {
+        "from": "decide-plan",
+        "to": "implement-change",
+        "label": "passed"
+      },
+      {
+        "from": "decide-quality",
+        "to": "implement-change",
+        "label": "needs-changes"
+      },
+      {
+        "from": "decide-quality",
+        "to": "review-change",
+        "label": "passed"
+      },
+      {
+        "from": "decide-review",
+        "to": "deliver-result",
+        "label": "passed"
+      },
+      {
+        "from": "decide-review",
+        "to": "implement-change",
+        "label": "needs-changes"
+      },
+      {
+        "from": "deliver-result",
+        "to": "end",
+        "label": ""
+      },
+      {
+        "from": "implement-change",
+        "to": "verify-change",
+        "label": ""
+      },
+      {
+        "from": "review-change",
+        "to": "decide-review",
+        "label": ""
+      },
+      {
+        "from": "start",
+        "to": "analyze-change",
+        "label": ""
+      },
+      {
+        "from": "verify-change",
+        "to": "decide-quality",
+        "label": ""
+      }
+    ]
+  },
+  {
+    "path": "harness/workflows/node-typescript-standards/workflow.yaml",
+    "document": {
+      "dsl": "1.0.3",
+      "namespace": "harness-graph",
+      "name": "node-typescript-standards",
+      "version": "1.0.0"
+    },
+    "nodes": [
+      {
+        "id": "end",
+        "type": "end",
+        "checks": []
+      },
+      {
+        "id": "load-node-typescript-standards",
+        "type": "call",
+        "call": "load-node-typescript-standards",
+        "checks": []
+      },
+      {
+        "id": "start",
+        "type": "start",
+        "checks": []
+      }
+    ],
+    "transitions": [
+      {
+        "from": "load-node-typescript-standards",
+        "to": "end",
+        "label": ""
+      },
+      {
+        "from": "start",
+        "to": "load-node-typescript-standards",
+        "label": ""
+      }
+    ]
+  }
+]

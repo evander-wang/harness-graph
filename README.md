@@ -4,28 +4,27 @@ Harness Graph 使用一份标准 `workflow.yaml` 描述本地 Agent 应按什么
 
 ## 快速开始
 
-### 1. 构建 Bootstrap CLI
+### 1. 使用 npx 安装
 
-当前版本从 Harness Graph 源码构建安装命令，需要 Node.js 22 或更高版本：
+需要 Node.js 22 或更高版本。在业务项目根目录执行固定版本的安装命令：
+
+```bash
+cd /path/to/your-project
+npx --yes @jichaowang/harness-graph@0.1.0 install
+```
+
+也可以显式指定目标目录：
+
+```bash
+npx --yes @jichaowang/harness-graph@0.1.0 install /path/to/your-project
+```
+
+固定版本可以避免 `latest` 更新导致同一条自动化命令产生不同安装结果。贡献者从源码验证未发布版本时执行：
 
 ```bash
 cd /path/to/harness-graph
 npm ci
 npm run build
-```
-
-### 2. 安装到业务项目
-
-在业务项目根目录执行 `install`：
-
-```bash
-cd /path/to/your-project
-node /path/to/harness-graph/dist/cli.js install
-```
-
-也可以从 Harness Graph 仓库直接指定目标目录：
-
-```bash
 node dist/cli.js install /path/to/your-project
 ```
 
@@ -33,7 +32,7 @@ node dist/cli.js install /path/to/your-project
 
 Runtime、Workflow、Model、Check 和 Skill 会随业务项目保存。运行状态位于 `harness-graph/.state/`，Runtime 依赖位于 `harness-graph/runtime/node_modules/`，两者都被 Git 忽略。
 
-### 3. 验证安装
+### 2. 验证安装
 
 安装完成后只使用项目本地入口：
 
@@ -53,9 +52,9 @@ npm ci --prefix harness-graph/runtime --omit=dev --ignore-scripts --no-audit --n
 ./harness-graph/bin/harness-graph preflight
 ```
 
-再次从 Harness Graph 源码执行 `install` 会检查并升级项目本地 Runtime；首次安装和升级都会生成只包含生产依赖的 Runtime `package.json` 与 Lockfile。若项目存在运行中的 Run，升级会停止并保留原 Runtime，待 Run 完成或取消后再重试 `install`。
+再次执行同一条 `npx ... install` 会检查并升级项目本地 Runtime；首次安装和升级都会生成只包含生产依赖的 Runtime `package.json` 与 Lockfile。若项目存在运行中的 Run，升级会停止并保留原 Runtime，待 Run 完成或取消后再重试 `install`。
 
-### 4. 让 Agent 执行任务
+### 3. 让 Agent 执行任务
 
 日常使用时，在业务项目中直接向 Agent 描述任务。托管入口要求 Agent 先运行 `route`，也可以在提示中明确写出：
 
@@ -77,7 +76,7 @@ $harness-graph 使用 node-typescript-development 工作流修复配置加载失
 
 宿主或 Agent 重启后，重新执行 `route` 即可检查可恢复 Run。不要删除 `harness-graph/.state/`，也不要手工解析 Workflow 决定下一步。
 
-### 5. 修改项目本地 Workflow
+### 4. 修改项目本地 Workflow
 
 业务项目可以直接维护安装后的 Workflow、Skill、Check 和 Model。修改已激活 Workflow 或激活声明后，刷新并检查 Catalog：
 
@@ -89,7 +88,7 @@ $harness-graph 使用 node-typescript-development 工作流修复配置加载失
 
 重复执行 `install` 不会覆盖项目修改或删除的 Workflow、Skill、Check 和 Model。当前安装使用 `layoutVersion: 2`。旧 `harness-next/` 的 `layoutVersion: 1` 安装继续执行同一个 `install` 即可迁移到 `harness-graph/`；安装器会保留项目资产和 `installedAt`，重建 Runtime 与 Catalog，并替换托管块和宿主 Adapter，不需要额外迁移命令。运行中的 Run 或新旧 Harness Root 并存会阻止迁移并保留原安装。Runtime 必需文件缺失时安装会失败；当前版本不提供 `repair` 或卸载命令。
 
-### 6. 失败处理
+### 5. 失败处理
 
 `preflight`、Catalog 检查或 Runtime 返回 `blocked`、`failed`、`cancelled` 时应停止并报告，不得绕过项目本地入口继续执行。
 
@@ -254,6 +253,7 @@ Workflow Input 使用 `projectRoot` 指定目标项目目录，默认 `.`。Harn
 npm install
 npm run project:check
 npm run check:all
+npm run package:check
 npm run build
 npm run doctor
 npm run workflow:activate
@@ -269,6 +269,8 @@ npm run workflow:image -- harness/workflows/node-typescript-development/workflow
 npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml --expand-prerequisites
 npm run workflow:image -- harness/workflows/node-project-configuration/workflow.yaml
 ```
+
+`npm run package:check` 会构建真实 npm tarball，检查发布边界，并通过 `npm exec` 安装到临时项目后执行 `preflight`。核心 Workflow 或 Runtime 行为有意变化时，先审阅实现 Diff，再执行 `UPDATE_GOLDEN=1 npm test` 更新 Golden。
 
 可运行示例包括 [change-execution-policy/workflow.yaml](./harness/workflows/change-execution-policy/workflow.yaml)、[node-typescript-standards/workflow.yaml](./harness/workflows/node-typescript-standards/workflow.yaml)、[node-typescript-development/workflow.yaml](./harness/workflows/node-typescript-development/workflow.yaml) 和 [node-project-configuration/workflow.yaml](./harness/workflows/node-project-configuration/workflow.yaml)。前两个是非入口前置 Workflow，不能由用户直接路由。
 

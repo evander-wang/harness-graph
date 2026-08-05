@@ -1,12 +1,32 @@
 {
-  "name": "harness-graph",
+  "name": "@jichaowang/harness-graph",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "面向本地编码 Agent 的声明式 Workflow 编译与校验工具。",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evander-wang/harness-graph.git"
+  },
+  "homepage": "https://github.com/evander-wang/harness-graph#readme",
+  "bugs": {
+    "url": "https://github.com/evander-wang/harness-graph/issues"
+  },
   "type": "module",
   "packageManager": "npm@11.3.0",
+  "files": [
+    "dist/",
+    "harness/checks/",
+    "harness/generated/workflow-catalog.json",
+    "harness/models/",
+    "harness/workflow-activation.yaml",
+    "harness/workflows/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
-    "harness-graph": "./dist/cli.js"
+    "harness-graph": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -24,7 +44,14 @@
     "workflow:start": "npm run build --silent && node dist/cli.js start",
     "workflow:continue": "npm run build --silent && node dist/cli.js continue",
     "workflow:cancel": "npm run build --silent && node dist/cli.js cancel",
-    "project:check": "npm run build --silent && node dist/cli.js project-check"
+    "project:check": "npm run build --silent && node dist/cli.js project-check",
+    "package:check": "vitest run tests/package-release.test.ts",
+    "prepack": "npm run build && node --input-type=module -e \"import { checkWorkflowCatalog } from './dist/workflow/catalog.js'; await checkWorkflowCatalog({ rootDir: process.cwd() });\"",
+    "prepublishOnly": "npm run check:all && npm run project:check"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "engines": {
     "node": ">=22.0.0",

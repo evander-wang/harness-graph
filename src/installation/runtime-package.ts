@@ -62,10 +62,6 @@ export function projectRuntimePackage(
   displayPath = "package.json",
 ): RuntimePackageJson {
   const packageJson = asRecord(source, displayPath);
-  const privateValue = packageJson.private;
-  if (privateValue !== true) {
-    throw new Error(`${displayPath}.private 必须为 true。`);
-  }
   const type = requiredString(packageJson, "type", displayPath);
   if (type !== "module") {
     throw new Error(`${displayPath}.type 必须为 module。`);
@@ -116,7 +112,15 @@ export async function generateRuntimeLock(runtimeRoot: string): Promise<void> {
         "--no-audit",
         "--no-fund",
       ],
-      { cwd: runtimeRoot, encoding: "utf8" },
+      {
+        cwd: runtimeRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          npm_config_dry_run: "false",
+          npm_config_package_lock: "true",
+        },
+      },
     );
   } catch (error: unknown) {
     throw new Error("项目本地 Runtime 生产依赖锁文件生成失败。", { cause: error });

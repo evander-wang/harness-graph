@@ -65,6 +65,7 @@ Open Workflow 的标准 Schema 由 `@openworkflowspec/sdk` 提供，禁止复制
 
 ```bash
 npm run check:all
+npm run package:check
 npm run doctor
 npm run workflow:activate
 npm run workflow:validate -- harness/workflows/change-execution-policy/workflow.yaml
@@ -77,3 +78,22 @@ npm run workflow:image -- harness/workflows/node-typescript-standards/workflow.y
 npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml
 npm run workflow:image -- harness/workflows/node-project-configuration/workflow.yaml
 ```
+
+## Golden Test
+
+P0 Golden 只锁定核心执行语义：Workflow 的 Step、Check 和 Transition，以及 Runtime 的回改 Cycle、Check 和完成 Trace。Runtime 基线会移除时间、耗时等不稳定字段；Catalog 继续由 `harness/generated/workflow-catalog.json` 和 `workflow:activate --check` 锁定，不维护重复基线。安装和 npm 发布边界使用显式断言与 smoke test，不使用 Golden。
+
+Golden 不会在 CI 自动更新。确认行为变化符合预期后执行：
+
+```bash
+UPDATE_GOLDEN=1 npm test
+git diff -- tests/fixtures
+```
+
+必须在同一个 PR 中审阅并提交实现与 Golden 变化。
+
+## npm 发布
+
+公开包名是 `@jichaowang/harness-graph`。发布前更新 `package.json` 和 `package-lock.json` 中的语义化版本，确保 Git Tag `v<version>` 与包版本完全一致，并发布对应 GitHub Release。`.github/workflows/release.yml` 会从该 Tag 运行完整门禁并通过 npm Trusted Publishing 发布；普通 Branch 和 `main` Push 不会发布。
+
+首次发布是一次性引导步骤：从通过 CI 的 `v0.1.0` Tag 本地执行 `npm publish --access public`，但不要为该 Tag 发布 GitHub Release，避免 Release Workflow 重复发布同一版本。包创建后，在 npm Package Settings 中绑定 GitHub 仓库 `evander-wang/harness-graph`、Workflow `release.yml` 和 Environment `npm`。从下一个版本开始只发布 GitHub Release，由受保护 Environment 审批后通过 OIDC 发布并自动生成 provenance；禁止把长期 npm Publish Token 写入仓库。

@@ -1,0 +1,140 @@
+{
+  "status": "completed",
+  "revision": 6,
+  "attempts": {
+    "inspect-change": 2,
+    "implement-change": 1,
+    "verify-change": 1,
+    "deliver-change": 1
+  },
+  "output": {
+    "status": "done"
+  },
+  "trace": [
+    {
+      "type": "step_started",
+      "stepId": "inspect-change",
+      "attempt": 1,
+      "revision": 1
+    },
+    {
+      "type": "step_result",
+      "stepId": "inspect-change",
+      "attempt": 1,
+      "revision": 2,
+      "status": "needs_changes",
+      "evidence": [
+        "inspect-change:needs_changes"
+      ],
+      "checkExecutions": []
+    },
+    {
+      "type": "transition",
+      "fromStepId": "inspect-change",
+      "toStepId": "inspect-change",
+      "status": "needs_changes"
+    },
+    {
+      "type": "step_started",
+      "stepId": "inspect-change",
+      "attempt": 2,
+      "revision": 2
+    },
+    {
+      "type": "step_result",
+      "stepId": "inspect-change",
+      "attempt": 2,
+      "revision": 3,
+      "status": "passed",
+      "evidence": [
+        "inspect-change:passed"
+      ],
+      "checkExecutions": []
+    },
+    {
+      "type": "transition",
+      "fromStepId": "inspect-change",
+      "toStepId": "implement-change",
+      "status": "passed"
+    },
+    {
+      "type": "step_started",
+      "stepId": "implement-change",
+      "attempt": 1,
+      "revision": 3
+    },
+    {
+      "type": "step_result",
+      "stepId": "implement-change",
+      "attempt": 1,
+      "revision": 4,
+      "status": "passed",
+      "evidence": [
+        "implement-change:passed"
+      ],
+      "checkExecutions": []
+    },
+    {
+      "type": "transition",
+      "fromStepId": "implement-change",
+      "toStepId": "verify-change",
+      "status": "passed"
+    },
+    {
+      "type": "step_started",
+      "stepId": "verify-change",
+      "attempt": 1,
+      "revision": 4
+    },
+    {
+      "type": "step_result",
+      "stepId": "verify-change",
+      "attempt": 1,
+      "revision": 5,
+      "status": "passed",
+      "evidence": [
+        "verify-change:passed",
+        "quality-gate: node -e process.exit(0) -> 0"
+      ],
+      "checkExecutions": [
+        {
+          "checkId": "quality-gate",
+          "cwd": "workspace",
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "type": "transition",
+      "fromStepId": "verify-change",
+      "toStepId": "deliver-change",
+      "status": "passed"
+    },
+    {
+      "type": "step_started",
+      "stepId": "deliver-change",
+      "attempt": 1,
+      "revision": 5
+    },
+    {
+      "type": "step_result",
+      "stepId": "deliver-change",
+      "attempt": 1,
+      "revision": 6,
+      "status": "passed",
+      "evidence": [
+        "deliver-change:passed"
+      ],
+      "checkExecutions": []
+    },
+    {
+      "type": "transition",
+      "fromStepId": "deliver-change",
+      "toStepId": null,
+      "status": "passed"
+    },
+    {
+      "type": "workflow_completed"
+    }
+  ]
+}
