@@ -1,0 +1,45 @@
+name: Compatibility
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 22
+            npm: 10.9.7
+          - node: 24
+            npm: 11.3.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Use matrix npm version
+        run: npm install --global npm@${{ matrix.npm }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run compatibility checks
+        run: npm run typecheck && npm test && npm run build

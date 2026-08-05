@@ -16,6 +16,8 @@
 
 `install` 将发布载荷原子安装到业务项目的 `harness-graph/`。Project Root 与默认 Workspace Root 是业务项目根，Harness Root 是 `<project>/harness-graph`，Runtime Root 是 `<harness>/runtime`，State Root 是 `<harness>/.state`。`installation.json` 保存布局、版本和 Runtime 内容哈希，不保存机器绝对路径。
 
+npm 包 `@jichaowang/harness-graph` 是 Bootstrap 发布边界。发布白名单只包含编译后的 `dist/`、Workflow、Model、Check、Skill、Catalog、激活声明和用户文档。npm 不发布根 `package-lock.json`；安装器从公开包的 `package.json` 投影出 `private: true` 的 Runtime Package，并在目标项目现场生成生产 Lockfile。源码安装与 npm 安装使用同一套 `installHarnessProject()` Interface。
+
 安装 Module 通过 `installHarnessProject()`、`checkHarnessProject()` 和 `resolveHarnessPaths()` 三个 Interface 隐藏载荷复制、Runtime 生产依赖恢复、托管块校验、项目 Skill Adapter、幂等规则、Catalog 激活和 Root 推导。安装器先在 Project Root 内创建临时目录，完成 Runtime、资产、启动器、清单和 Catalog 后再移动到 `harness-graph/`。
 
 `AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 仍归业务项目所有。安装器只替换唯一的版本化托管块；缺失半边、重复标记、目录或不可读写文件都会使安装失败，不猜测、不合并。
@@ -138,3 +140,9 @@ data: {} # 可选业务数据
 - 除状态比较外的运行时表达式求值。
 
 只有出现明确本地使用场景、执行语义和测试后，才扩大允许的标准 Task 子集。
+
+## Golden 回归边界
+
+P0 Golden 只锁定核心执行语义：Workflow Compiler 产生的 Step、Check 和 Transition，以及 Runtime 的回改 Cycle、Check 和完成 Trace。时间戳和耗时会被规范化。安装器与 npm 发布物变化更频繁，使用针对不变量的显式断言和真实安装 smoke test，避免把目录清单固化为高维护成本的快照。
+
+`harness/generated/workflow-catalog.json` 本身已经是由 Workflow 生成并提交的可审阅产物，`workflow:activate --check` 负责检测漂移，因此不再建立第二份 Catalog Golden。Golden 只能通过显式 `UPDATE_GOLDEN=1` 在本地更新，CI 永远只读比较。

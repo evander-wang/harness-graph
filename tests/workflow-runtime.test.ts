@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { describe, expect, test } from "vitest";
 
@@ -11,6 +11,7 @@ import {
   type StepResult,
   type WorkflowRuntimeResponse,
 } from "../src/workflow/runtime.js";
+import { expectGolden } from "./helpers/golden.js";
 
 async function createRuntimeProject(options?: { failingQualityGate?: boolean }): Promise<{
   rootDir: string;
@@ -132,6 +133,76 @@ function resultFor(
 }
 
 describe("Local Workflow Runtime", () => {
+  test("Golden 锁定回改 Cycle、Check 和完成 Transition", async () => {
+    const project = await createRuntimeProject();
+    const firstInspect = await startWorkflowRun({
+      ...project,
+      executionKey: "golden-cycle",
+      input: { title: "Golden Runtime" },
+    });
+    const secondInspect = await continueWorkflowRun({
+      rootDir: project.rootDir,
+      runId: firstInspect.runId,
+      result: resultFor(firstInspect, "needs_changes"),
+    });
+    const implement = await continueWorkflowRun({
+      rootDir: project.rootDir,
+      runId: secondInspect.runId,
+      result: resultFor(secondInspect, "passed"),
+    });
+    const verify = await continueWorkflowRun({
+      rootDir: project.rootDir,
+      runId: implement.runId,
+      result: resultFor(implement, "passed"),
+    });
+    const deliver = await continueWorkflowRun({
+      rootDir: project.rootDir,
+      runId: verify.runId,
+      result: resultFor(verify, "passed"),
+    });
+    const completed = await continueWorkflowRun({
+      rootDir: project.rootDir,
+      runId: deliver.runId,
+      result: resultFor(deliver, "passed", { status: "done" }),
+    });
+    const state = JSON.parse(
+      await readFile(join(project.rootDir, ".harness/runs", completed.runId, "state.json"), "utf8"),
+    ) as { attempts?: unknown; status?: unknown; revision?: unknown; output?: unknown; executionTrace?: unknown[] };
+    const trace = (state.executionTrace ?? []).map((entry) => {
+      const record = entry as Record<string, unknown>;
+      const stable = Object.fromEntries(
+        Object.entries(record).filter(([key]) => key !== "at" && key !== "checkExecutions"),
+      );
+      const checkExecutions = record.checkExecutions;
+      return {
+        ...stable,
+        ...(Array.isArray(checkExecutions)
+          ? {
+              checkExecutions: checkExecutions.map((check) => {
+                const record = check as Record<string, unknown>;
+                return {
+                  checkId: record.checkId,
+                  cwd: record.cwd,
+                  exitCode: record.exitCode,
+                };
+              }),
+            }
+          : {}),
+      };
+    });
+
+    await expectGolden(
+      join(resolve(import.meta.dirname, ".."), "tests/fixtures/runtime-transitions.golden.json"),
+      {
+        status: state.status,
+        revision: state.revision,
+        attempts: state.attempts,
+        output: state.output,
+        trace,
+      },
+    );
+  });
+
   test("start 校验输入、固定 Workflow 并返回首个 Step", async () => {
     const project = await createRuntimeProject();
 

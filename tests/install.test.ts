@@ -145,8 +145,8 @@ describe("installHarnessProject", () => {
       await readFile(join(workspaceRoot, "harness-graph/runtime/package.json"), "utf8"),
     ) as { name?: string; bin?: Record<string, string> };
     expect(runtimePackage).toMatchObject({
-      name: "harness-graph",
-      bin: { "harness-graph": "./dist/cli.js" },
+      name: "@jichaowang/harness-graph",
+      bin: { "harness-graph": "dist/cli.js" },
     });
     const adapter = await readFile(
       join(workspaceRoot, ".agents/skills/harness-graph/SKILL.md"),
@@ -255,9 +255,9 @@ describe("installHarnessProject", () => {
       await readFile(join(workspaceRoot, "harness-graph/runtime/package.json"), "utf8"),
     ) as Record<string, unknown>;
     expect(runtimePackage).toMatchObject({
-      name: "harness-graph",
+      name: "@jichaowang/harness-graph",
       type: "module",
-      bin: { "harness-graph": "./dist/cli.js" },
+      bin: { "harness-graph": "dist/cli.js" },
       engines: { node: ">=22.0.0", npm: ">=10.0.0" },
     });
     expect(runtimePackage.scripts).toBeUndefined();
