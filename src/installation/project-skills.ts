@@ -2,14 +2,33 @@ import { mkdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 const PROJECT_SKILL_SOURCE = `---
-name: harness-next
-description: Run this project's installed Harness Next Workflow. Use when the user invokes harness-next, names a Workflow or Alias, asks to run or recover a Workflow, or requests a project code or configuration change.
+name: harness-graph
+description: >-
+  Run this project's installed Harness Graph Workflow. Use when the user invokes harness-graph,
+  names a Workflow or Alias, asks to run or recover a Workflow, or requests a project code or
+  configuration change.
 ---
 
-Read \`../../../harness-next/skills/harness-next/SKILL.md\` completely and follow it for the current user request.
+Read \`../../../harness-graph/skills/harness-graph/SKILL.md\` completely and follow it for the current user request.
 `;
 
 const PROJECT_SKILL_PATHS = [
+  ".agents/skills/harness-graph/SKILL.md",
+  ".claude/skills/harness-graph/SKILL.md",
+] as const;
+
+const LEGACY_PROJECT_SKILL_SOURCE = [
+  "---\n",
+  "name: harness-next\n",
+  "description: Run this project's installed Harness Next Workflow. ",
+  "Use when the user invokes harness-next, names a Workflow or Alias, ",
+  "asks to run or recover a Workflow, or requests a project code or configuration change.\n",
+  "---\n\n",
+  "Read `../../../harness-next/skills/harness-next/SKILL.md` completely and follow it ",
+  "for the current user request.\n",
+].join("");
+
+const LEGACY_PROJECT_SKILL_PATHS = [
   ".agents/skills/harness-next/SKILL.md",
   ".claude/skills/harness-next/SKILL.md",
 ] as const;
@@ -28,7 +47,7 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 async function readOptionalFile(path: string, displayPath: string): Promise<string | null> {
   try {
     if (!(await stat(path)).isFile()) {
-      throw new Error(`项目级 Skill 已存在且不受 Harness Next 管理：${displayPath}`);
+      throw new Error(`项目级 Skill 已存在且不受 Harness Graph 管理：${displayPath}`);
     }
     return await readFile(path, "utf8");
   } catch (error: unknown) {
@@ -49,6 +68,19 @@ export async function prepareProjectSkillAdapters(
   );
 }
 
+export async function prepareLegacyBrandProjectSkillAdapters(
+  projectRoot: string,
+): Promise<ProjectSkillAdapterPlan[]> {
+  const plans = await Promise.all(
+    LEGACY_PROJECT_SKILL_PATHS.map((displayPath) => prepareProjectSkillFile(
+      join(projectRoot, displayPath),
+      displayPath,
+      LEGACY_PROJECT_SKILL_SOURCE,
+    )),
+  );
+  return plans.filter((plan) => plan.existed);
+}
+
 async function prepareProjectSkillFile(
   path: string,
   displayPath: string,
@@ -56,7 +88,7 @@ async function prepareProjectSkillFile(
 ): Promise<ProjectSkillAdapterPlan> {
   const current = await readOptionalFile(path, displayPath);
   if (current !== null && current !== source) {
-    throw new Error(`项目级 Skill 已存在且不受 Harness Next 管理：${displayPath}`);
+    throw new Error(`项目级 Skill 已存在且不受 Harness Graph 管理：${displayPath}`);
   }
   return { path, displayPath, existed: current !== null, source };
 }
@@ -65,8 +97,8 @@ export async function prepareLegacyProjectSkills(
   projectRoot: string,
   sourceRoot: string,
 ): Promise<ProjectSkillAdapterPlan[]> {
-  const displayPath = "harness-next/skills/harness-next/SKILL.md";
-  const canonicalSource = await readFile(join(sourceRoot, "skills/harness-next/SKILL.md"), "utf8");
+  const displayPath = "harness-graph/skills/harness-graph/SKILL.md";
+  const canonicalSource = await readFile(join(sourceRoot, "skills/harness-graph/SKILL.md"), "utf8");
   const canonical = await prepareProjectSkillFile(
     join(projectRoot, displayPath),
     displayPath,
@@ -101,6 +133,32 @@ export async function restoreProjectSkillAdapters(
     if (plan.existed) continue;
     await rm(plan.path, { force: true });
     await removeEmptyParents(plan.path, projectRoot);
+  }
+}
+
+export async function removeLegacyBrandProjectSkillAdapters(
+  projectRoot: string,
+  plans: readonly ProjectSkillAdapterPlan[],
+): Promise<void> {
+  const removed: ProjectSkillAdapterPlan[] = [];
+  try {
+    for (const plan of plans) {
+      await rm(plan.path);
+      removed.push(plan);
+      await removeEmptyParents(plan.path, projectRoot);
+    }
+  } catch (error: unknown) {
+    await restoreLegacyBrandProjectSkillAdapters(removed);
+    throw error;
+  }
+}
+
+export async function restoreLegacyBrandProjectSkillAdapters(
+  plans: readonly ProjectSkillAdapterPlan[],
+): Promise<void> {
+  for (const plan of plans) {
+    await mkdir(dirname(plan.path), { recursive: true });
+    await writeFile(plan.path, plan.source, { encoding: "utf8", flag: "wx" });
   }
 }
 

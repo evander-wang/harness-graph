@@ -1,22 +1,22 @@
-# Harness Next 项目本地安装设计
+# Harness Graph 项目本地安装设计
 
 ## 目标
 
 提供一个安装命令：
 
 ```bash
-harness-next install
+harness-graph install
 ```
 
 命令将当前工作目录视为待开发项目根目录。安装完成后：
 
-1. Harness Next 的 Runtime、Workflow、Model、Check 和 Skill 全部随业务项目保存；
-2. 所有 Harness 文件统一收口到项目根目录的 `harness-next/`；
+1. Harness Graph 的 Runtime、Workflow、Model、Check 和 Skill 全部随业务项目保存；
+2. 所有 Harness 文件统一收口到项目根目录的 `harness-graph/`；
 3. 用户可以直接修改、新增 Workflow、Skill、Check 和 Model；
 4. 保留业务项目原有 `AGENTS.md` 和 `CLAUDE.md`；
 5. Agent 每次收到项目任务时先进入项目本地 Workflow Router；
 6. Runtime 状态不提交 Git；
-7. Workflow 执行不依赖安装机器上的全局 Harness Next 版本。
+7. Workflow 执行不依赖安装机器上的全局 Harness Graph 版本。
 
 ## 安装布局
 
@@ -28,15 +28,15 @@ business-project/
 ├── CLAUDE.md
 ├── .gitignore
 ├── .agents/
-│   └── skills/harness-next/SKILL.md   # Codex Adapter
+│   └── skills/harness-graph/SKILL.md   # Codex Adapter
 ├── .claude/
-│   └── skills/harness-next/SKILL.md   # Claude Code Adapter
+│   └── skills/harness-graph/SKILL.md   # Claude Code Adapter
 ├── package.json
 ├── src/
 │
-└── harness-next/
+└── harness-graph/
     ├── bin/
-    │   └── harness-next
+    │   └── harness-graph
     │
     ├── runtime/
     │   ├── dist/
@@ -77,11 +77,11 @@ business-project/
         └── tmp/
 ```
 
-项目根目录只新增一个业务可见目录 `harness-next/`，并在两个宿主约定目录中新增项目 Skill Adapter。`AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 只插入安装器托管块，不替换文件。
+项目根目录只新增一个业务可见目录 `harness-graph/`，并在两个宿主约定目录中新增项目 Skill Adapter。`AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 只插入安装器托管块，不替换文件。
 
-`harness-next/` 使用可见目录而非隐藏目录，因为 Workflow、Skill、Check 和 Model 是使用方需要持续维护、Review 和提交的项目资产。
+`harness-graph/` 使用可见目录而非隐藏目录，因为 Workflow、Skill、Check 和 Model 是使用方需要持续维护、Review 和提交的项目资产。
 
-`.agents/skills/harness-next/SKILL.md` 与 `.claude/skills/harness-next/SKILL.md` 内容相同，只加载 `harness-next/skills/harness-next/SKILL.md`。Adapter 由安装器管理，不是 Skill 事实源；已有同名但内容不同的文件或非文件路径时安装必须失败，禁止覆盖。
+`.agents/skills/harness-graph/SKILL.md` 与 `.claude/skills/harness-graph/SKILL.md` 内容相同，只加载 `harness-graph/skills/harness-graph/SKILL.md`。Adapter 由安装器管理，不是 Skill 事实源；已有同名但内容不同的文件或非文件路径时安装必须失败，禁止覆盖。
 
 ## Root 定义
 
@@ -91,15 +91,15 @@ business-project/
 | --- | --- | --- |
 | Project Root | 执行 `install` 的当前目录 | 业务项目、业务代码和项目开发规范 |
 | Workspace Root | 与 Project Root 相同 | 当前 Workflow 实际修改和检查的目标项目 |
-| Harness Root | `<project>/harness-next` | Workflow、Skill、Check、Model 和 Catalog |
-| Runtime Root | `<project>/harness-next/runtime` | CLI 及运行依赖 |
-| State Root | `<project>/harness-next/.state` | Run、Lock 和临时输入 |
+| Harness Root | `<project>/harness-graph` | Workflow、Skill、Check、Model 和 Catalog |
+| Runtime Root | `<project>/harness-graph/runtime` | CLI 及运行依赖 |
+| State Root | `<project>/harness-graph/.state` | Run、Lock 和临时输入 |
 
 默认关系：
 
 ```text
 Project Root = Workspace Root
-Project Root/harness-next = Harness Root
+Project Root/harness-graph = Harness Root
 Harness Root/runtime = Runtime Root
 Harness Root/.state = State Root
 ```
@@ -113,13 +113,13 @@ Harness Root/.state = State Root
 初次安装由临时 Bootstrap CLI 执行：
 
 ```bash
-npx harness-next install
+npx harness-graph install
 ```
 
 当前未发布 npm 时支持：
 
 ```bash
-node /path/to/harness-next/dist/cli.js install
+node /path/to/harness-graph/dist/cli.js install
 ```
 
 Bootstrap CLI 只负责把完整可运行载荷安装到当前目录。
@@ -129,20 +129,20 @@ Bootstrap CLI 只负责把完整可运行载荷安装到当前目录。
 所有项目任务统一调用项目本地命令：
 
 ```bash
-./harness-next/bin/harness-next route
+./harness-graph/bin/harness-graph route
 ```
 
 诊断命令：
 
 ```bash
-./harness-next/bin/harness-next preflight
+./harness-graph/bin/harness-graph preflight
 ```
 
 维护命令：
 
 ```bash
-./harness-next/bin/harness-next activate
-./harness-next/bin/harness-next validate workflows/example/workflow.yaml
+./harness-graph/bin/harness-graph activate
+./harness-graph/bin/harness-graph validate workflows/example/workflow.yaml
 ```
 
 Router 禁止调用业务项目的 `npm run workflow:start`、`npm run workflow:continue` 等 npm scripts。业务项目可能不是 npm 项目，也可能存在语义不同的同名脚本。
@@ -152,7 +152,7 @@ Router 禁止调用业务项目的 `npm run workflow:start`、`npm run workflow:
 安装器生成：
 
 ```text
-harness-next/bin/harness-next
+harness-graph/bin/harness-graph
 ```
 
 启动器只负责定位同一安装目录内的 Runtime：
@@ -170,7 +170,7 @@ exec node "$HARNESS_ROOT/runtime/dist/cli.js" "$@"
 - 不依赖机器绝对路径；
 - 项目移动后仍有效；
 - 项目 clone 到其他机器后仍能定位 Runtime；
-- 不依赖全局 `harness-next`；
+- 不依赖全局 `harness-graph`；
 - 不依赖业务项目 `package.json`；
 - Node.js 版本要求继续为 22 及以上。
 
@@ -179,15 +179,15 @@ exec node "$HARNESS_ROOT/runtime/dist/cli.js" "$@"
 安装清单位置：
 
 ```text
-harness-next/installation.json
+harness-graph/installation.json
 ```
 
-首版结构：
+当前结构：
 
 ```json
 {
   "schemaVersion": 1,
-  "layoutVersion": 1,
+  "layoutVersion": 2,
   "harnessVersion": "0.1.0",
   "installedAt": "2026-08-03T00:00:00.000Z",
   "runtime": {
@@ -207,7 +207,7 @@ harness-next/installation.json
 
 安装清单不得保存机器绝对路径。所有路径根据项目本地启动器动态解析，保证项目可移动、可 clone。
 
-早期 `layoutVersion: 1` 清单只有 `agents`、`claude` 和 `gitignore` 三个托管字段，或只有项目 Skill 字段而没有 Runtime 元数据。它们与当前 Runtime 路径契约兼容；重复执行同一个 `install` 时，安装器补齐规范入口、两个宿主 Adapter、生产 Runtime 以及 `codexSkill`、`claudeSkill` 和 `runtime` 字段，不提升布局版本。
+`layoutVersion: 2` 表示 Harness Root、CLI 和项目 Skill 均使用 `harness-graph`。早期 `layoutVersion: 1` 使用 `harness-next/`；重复执行同一个 `install` 时，安装器迁移根目录、规范入口、两个宿主 Adapter、托管块和生产 Runtime，并将清单提升为 v2。迁移不覆盖用户维护的 Workflow、Skill、Check 或 Model。
 
 ## AGENTS.md 集成
 
@@ -216,21 +216,21 @@ harness-next/installation.json
 安装器在文件顶部插入以下托管块：
 
 ```markdown
-<!-- harness-next:start version=1 -->
-## Harness Next
+<!-- harness-graph:start version=1 -->
+## Harness Graph
 
 处理本项目的任何开发任务前，必须先执行：
 
-`./harness-next/bin/harness-next route`
+`./harness-graph/bin/harness-graph route`
 
 必须遵循 Runtime 返回的当前 Step，不得自行解析 Workflow、跳过 Check 或直接进入后续 Step。
 
-`harness-next/workflows/`、`harness-next/models/`、`harness-next/checks/` 和
-`harness-next/skills/` 是本项目维护的 Harness 事实源。
+`harness-graph/workflows/`、`harness-graph/models/`、`harness-graph/checks/` 和
+`harness-graph/skills/` 是本项目维护的 Harness 事实源。
 
 本文件其余项目开发规范继续有效。入口不可用、preflight 失败或 Workflow
-进入 blocked 状态时，必须停止并报告，不得绕过 Harness Next。
-<!-- harness-next:end -->
+进入 blocked 状态时，必须停止并报告，不得绕过 Harness Graph。
+<!-- harness-graph:end -->
 ```
 
 原文件内容必须逐字保留。
@@ -270,35 +270,35 @@ harness-next/installation.json
 安装器插入托管块：
 
 ```gitignore
-# harness-next:start
-harness-next/runtime/node_modules/
-harness-next/.state/
-# harness-next:end
+# harness-graph:start
+harness-graph/runtime/node_modules/
+harness-graph/.state/
+# harness-graph:end
 ```
 
 需要提交：
 
 ```text
-harness-next/bin/
-harness-next/runtime/dist/
-harness-next/runtime/package.json
-harness-next/runtime/package-lock.json
-harness-next/workflows/
-harness-next/models/
-harness-next/checks/
-harness-next/skills/
-harness-next/generated/workflow-catalog.json
-harness-next/workflow-activation.yaml
-harness-next/installation.json
-.agents/skills/harness-next/SKILL.md
-.claude/skills/harness-next/SKILL.md
+harness-graph/bin/
+harness-graph/runtime/dist/
+harness-graph/runtime/package.json
+harness-graph/runtime/package-lock.json
+harness-graph/workflows/
+harness-graph/models/
+harness-graph/checks/
+harness-graph/skills/
+harness-graph/generated/workflow-catalog.json
+harness-graph/workflow-activation.yaml
+harness-graph/installation.json
+.agents/skills/harness-graph/SKILL.md
+.claude/skills/harness-graph/SKILL.md
 ```
 
 不提交：
 
 ```text
-harness-next/runtime/node_modules/
-harness-next/.state/
+harness-graph/runtime/node_modules/
+harness-graph/.state/
 ```
 
 ## install 接口与行为
@@ -306,7 +306,7 @@ harness-next/.state/
 公开接口：
 
 ```bash
-harness-next install [target-directory]
+harness-graph install [target-directory]
 ```
 
 默认：
@@ -315,7 +315,7 @@ harness-next install [target-directory]
 target-directory = process.cwd()
 ```
 
-同一 Interface 同时处理首次安装、早期 `layoutVersion: 1` 项目 Skill 迁移和当前安装的幂等确认，不增加 `upgrade` 或 `migrate` 命令。缺少清单时禁止根据目录猜测旧安装。
+同一 Interface 同时处理首次安装、`layoutVersion: 1` 根目录迁移和当前安装的幂等确认，不增加 `upgrade` 或 `migrate` 命令。缺少清单时禁止根据目录猜测旧安装。
 
 执行顺序：
 
@@ -336,7 +336,7 @@ target-directory = process.cwd()
 15. 修改 `AGENTS.md` 托管块；
 16. 修改 `CLAUDE.md` 托管块；
 17. 修改 `.gitignore` 托管块；
-18. 原子移动到 `harness-next/`；
+18. 原子移动到 `harness-graph/`；
 19. 生成 Workflow Catalog；
 20. 执行一次 preflight；
 21. 输出结构化结果。
@@ -348,42 +348,42 @@ target-directory = process.cwd()
   "status": "installed",
   "changed": true,
   "projectRoot": ".",
-  "harnessRoot": "harness-next",
-  "command": "./harness-next/bin/harness-next route"
+  "harnessRoot": "harness-graph",
+  "command": "./harness-graph/bin/harness-graph route"
 }
 ```
 
 ## 安装载荷来源
 
-安装器从当前 Harness Next 发布包读取安装载荷，不能在多个模块重复维护文件清单。
+安装器从当前 Harness Graph 发布包读取安装载荷，不能在多个模块重复维护文件清单。
 
 源文件及目标位置：
 
 | 源路径 | 目标路径 |
 | --- | --- |
-| `dist/` | `harness-next/runtime/dist/` |
-| `package.json` | `harness-next/runtime/package.json` |
-| `package-lock.json` | `harness-next/runtime/package-lock.json` |
-| `harness/workflows/` | `harness-next/workflows/` |
-| `harness/models/` | `harness-next/models/` |
-| `harness/checks/` | `harness-next/checks/` |
-| `harness/workflow-activation.yaml` | `harness-next/workflow-activation.yaml` |
-| `harness/generated/workflow-catalog.json` | `harness-next/generated/workflow-catalog.json` |
-| `skills/` | `harness-next/skills/` |
+| `dist/` | `harness-graph/runtime/dist/` |
+| `package.json` | `harness-graph/runtime/package.json` |
+| `package-lock.json` | `harness-graph/runtime/package-lock.json` |
+| `harness/workflows/` | `harness-graph/workflows/` |
+| `harness/models/` | `harness-graph/models/` |
+| `harness/checks/` | `harness-graph/checks/` |
+| `harness/workflow-activation.yaml` | `harness-graph/workflow-activation.yaml` |
+| `harness/generated/workflow-catalog.json` | `harness-graph/generated/workflow-catalog.json` |
+| `skills/` | `harness-graph/skills/` |
 
-项目根目录中的两个宿主 Adapter 由安装器根据固定薄入口生成。它们只引用上表复制出的 `harness-next/skills/harness-next/SKILL.md`，不维护第二份 Workflow、Check 或 Step Skill 规则。
+项目根目录中的两个宿主 Adapter 由安装器根据固定薄入口生成。它们只引用上表复制出的 `harness-graph/skills/harness-graph/SKILL.md`，不维护第二份 Workflow、Check 或 Step Skill 规则。
 
-安装载荷不包含 Harness Next 自身的开发入口和开发过程文件，例如：
+安装载荷不包含 Harness Graph 自身的开发入口和开发过程文件，例如：
 
-- Harness Next 自身的 `AGENTS.md`；
+- Harness Graph 自身的 `AGENTS.md`；
 - `tests/`；
 - `docs/superpowers/`；
-- Harness Next 自身 CI；
+- Harness Graph 自身 CI；
 - TypeScript 源码和开发配置。
 
 Runtime 包保留 CLI 运行时实际需要的生产依赖，不包含 `scripts`、`devDependencies` 或测试工具。安装器随后用 `npm install --package-lock-only --omit=dev` 生成专用生产 Lockfile；只有发生 Runtime 替换时才恢复 `node_modules`。
 
-这些内容属于 Harness Next 引擎开发，不属于使用方项目运行载荷。
+这些内容属于 Harness Graph 引擎开发，不属于使用方项目运行载荷。
 
 ## 幂等与冲突规则
 
@@ -408,23 +408,24 @@ Runtime 包保留 CLI 运行时实际需要的生产依赖，不包含 `scripts`
 
 ### 早期 layoutVersion 1 安装
 
-清单中同时缺少 `codexSkill` 和 `claudeSkill` 时，`install` 执行同布局迁移：
+旧安装位于 `harness-next/` 时，`install` 执行布局迁移：
 
-1. 校验旧清单、托管块和 Runtime 必需文件；
-2. 检查规范入口与两个宿主 Adapter 是否存在冲突；
-3. 创建缺失的 `harness-next/skills/harness-next/SKILL.md` 和 Adapter；
-4. 准备当前生产 Runtime，计算 Runtime 内容哈希；若存在运行中的 Run，则阻止 Runtime 替换；
-5. 原子替换 Runtime，保留原 `installedAt` 与 `harnessVersion`，最后原子补充清单托管字段和 Runtime 元数据；
-6. 执行当前 preflight，失败时恢复旧清单、旧 Runtime 并删除本次创建的文件。
+1. 校验旧清单、Runtime 内容哈希、托管块和 Runtime 必需文件；
+2. 检查新旧 Harness Root、规范入口与两个宿主 Adapter 是否存在冲突；
+3. 若存在运行中的 Run，停止并保留原安装；
+4. 在项目内临时目录复制用户资产，将旧品牌路径转换为 `harness-graph`；
+5. 重建当前生产 Runtime、启动器、Catalog 和 `layoutVersion: 2` 清单，并保留原 `installedAt`；
+6. 写入新托管块和 Adapter，切换新 Root 后执行当前 preflight；
+7. preflight 通过后移除旧 Adapter 和旧 Root，失败时回滚本次修改。
 
-两个新字段只有一个存在、目标路径内容不同或目标不是普通文件时，安装失败且不得产生部分修改。
+旧清单中的 `codexSkill` 和 `claudeSkill` 只有一个存在、目标路径内容不同或目标不是普通文件时，安装失败且不得产生部分修改。
 
 ### 已修改官方文件
 
 如果用户已经修改：
 
 ```text
-harness-next/workflows/node-typescript-development/workflow.yaml
+harness-graph/workflows/node-typescript-development/workflow.yaml
 ```
 
 重复执行 `install` 时：
@@ -447,7 +448,7 @@ harness-next/workflows/node-typescript-development/workflow.yaml
 公开接口：
 
 ```bash
-./harness-next/bin/harness-next preflight
+./harness-graph/bin/harness-graph preflight
 ```
 
 检查：
@@ -473,7 +474,7 @@ harness-next/workflows/node-typescript-development/workflow.yaml
 {
   "status": "ready",
   "projectRoot": ".",
-  "harnessRoot": "harness-next"
+  "harnessRoot": "harness-graph"
 }
 ```
 
@@ -484,7 +485,7 @@ harness-next/workflows/node-typescript-development/workflow.yaml
 公开入口：
 
 ```bash
-./harness-next/bin/harness-next route
+./harness-graph/bin/harness-graph route
 ```
 
 固定执行顺序：
@@ -542,7 +543,7 @@ Runtime 在每个 Run 的 `state.json` 中保存内部 `executionTrace`，记录
 执行摘要由 `src/workflow/report.ts` 从 Run 状态生成，项目本地 CLI 通过以下命令输出：
 
 ```bash
-./harness-next/bin/harness-next report <run-id> --format markdown
+./harness-graph/bin/harness-graph report <run-id> --format markdown
 ```
 
 报告包含 Workflow 名称、版本、哈希、实际 Step 顺序、尝试次数、Transition、Check 状态和最终状态。默认只保存结构化本地 Run 状态；Router 在 Workflow 成功完成且宿主支持交互时询问用户是否展示 Markdown 摘要。失败、阻塞或取消时直接输出必要摘要。Trace 和报告不得保存完整 Prompt、Secret 或完整命令输出。
@@ -567,7 +568,7 @@ cwd: harness | workspace
 
 | 值 | 执行目录 |
 | --- | --- |
-| `harness` | `<project>/harness-next` |
+| `harness` | `<project>/harness-graph` |
 | `workspace` | `<project>` |
 
 运行 Runtime CLI 的 Check 应使用：
@@ -594,7 +595,7 @@ harness://models/<file>.schema.json
 URI 固定解析到：
 
 ```text
-<project>/harness-next/models/<file>.schema.json
+<project>/harness-graph/models/<file>.schema.json
 ```
 
 不修改 Open Workflow Specification，不引入第二套 Workflow 格式。
@@ -609,7 +610,7 @@ Catalog 中不得保存机器绝对路径。
 
 ## Router Skill 调整
 
-`workflow-router` 当前依赖 Harness Next 开发仓库中的 npm scripts。安装布局下需要删除：
+`workflow-router` 当前依赖 Harness Graph 开发仓库中的 npm scripts。安装布局下需要删除：
 
 ```text
 npm run workflow:activate
@@ -620,17 +621,17 @@ npm run workflow:continue
 改为项目本地命令：
 
 ```text
-./harness-next/bin/harness-next preflight
-./harness-next/bin/harness-next activate --check
-./harness-next/bin/harness-next start ...
-./harness-next/bin/harness-next continue ...
+./harness-graph/bin/harness-graph preflight
+./harness-graph/bin/harness-graph activate --check
+./harness-graph/bin/harness-graph start ...
+./harness-graph/bin/harness-graph continue ...
 ```
 
 Router 必须：
 
 - 读取使用方原有项目开发规范；
 - 将项目规范作为当前任务约束；
-- 不把 Harness Next 自身的贡献规范应用到业务项目；
+- 不把 Harness Graph 自身的贡献规范应用到业务项目；
 - 只读取当前 Step 的 Skill 和 Check；
 - 不自行决定 Transition。
 
@@ -638,8 +639,8 @@ Router 必须：
 
 ```mermaid
 flowchart TD
-    A[在业务项目根目录执行 harness-next install] --> B[检查 Node.js 和目标目录]
-    B --> C[复制 Runtime 到 harness-next/runtime]
+    A[在业务项目根目录执行 harness-graph install] --> B[检查 Node.js 和目标目录]
+    B --> C[复制 Runtime 到 harness-graph/runtime]
     C --> D[复制 Workflow Model Check Skill]
     D --> E[生成项目本地启动器]
     E --> F[写 installation.json]
@@ -656,7 +657,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[Agent 收到项目任务] --> B[读取项目 AGENTS.md 或 CLAUDE.md]
-    B --> C[执行 harness-next/bin/harness-next route]
+    B --> C[执行 harness-graph/bin/harness-graph route]
     C --> D[项目本地 preflight]
     D -->|失败| X[停止并报告]
     D -->|通过| E[读取项目本地 Workflow Catalog]
@@ -677,12 +678,12 @@ flowchart TD
 - `install`；
 - `preflight`；
 - 项目本地启动器；
-- 单一 `harness-next/` 安装布局；
+- 单一 `harness-graph/` 安装布局；
 - `AGENTS.md`、`CLAUDE.md`、`.gitignore` 托管块；
 - Compiler、Catalog、Runtime、Check、Router 的路径适配；
 - 幂等安装；
 - 项目本地 Workflow 执行和恢复。
-- 同一 `layoutVersion: 1` 内的项目 Skill 入口迁移。
+- `layoutVersion: 1` 的旧品牌目录迁移。
 
 本次不实现：
 
@@ -692,7 +693,6 @@ flowchart TD
 - `uninstall`；
 - 宿主 Hook；
 - 自动合并用户修改过的 Workflow；
-- 不同目录布局自动迁移。
 
 ## 实现计划
 
@@ -717,7 +717,7 @@ resolveHarnessPaths(options)
 行为测试：
 
 ```text
-在空项目运行 install 后生成 harness-next/，并生成可执行的项目本地入口。
+在空项目运行 install 后生成 harness-graph/，并生成可执行的项目本地入口。
 ```
 
 最小实现内容：
@@ -780,7 +780,7 @@ resolveHarnessPaths(options)
 行为测试：
 
 ```text
-activate 从 harness-next/workflows 读取，并写入 harness-next/generated。
+activate 从 harness-graph/workflows 读取，并写入 harness-graph/generated。
 ```
 
 覆盖：
@@ -796,7 +796,7 @@ activate 从 harness-next/workflows 读取，并写入 harness-next/generated。
 行为测试：
 
 ```text
-Run 状态写入 harness-next/.state/runs，Check 的 workspace cwd 指向业务项目。
+Run 状态写入 harness-graph/.state/runs，Check 的 workspace cwd 指向业务项目。
 ```
 
 覆盖：
@@ -879,29 +879,29 @@ tests/installation.test.ts
 在空临时项目中执行：
 
 ```bash
-node /path/to/harness-next/dist/cli.js install
+node /path/to/harness-graph/dist/cli.js install
 ```
 
 安装后执行：
 
 ```bash
-./harness-next/bin/harness-next preflight
-./harness-next/bin/harness-next activate --check
-./harness-next/bin/harness-next validate workflows/node-typescript-development/workflow.yaml
+./harness-graph/bin/harness-graph preflight
+./harness-graph/bin/harness-graph activate --check
+./harness-graph/bin/harness-graph validate workflows/node-typescript-development/workflow.yaml
 ```
 
 必须验证：
 
-- 项目根只新增一个业务可见目录 `harness-next/`；
+- 项目根只新增一个业务可见目录 `harness-graph/`；
 - 原有 `AGENTS.md` 内容未丢失；
 - 原有 `CLAUDE.md` 内容未丢失；
 - 原有 `.gitignore` 内容未丢失；
 - 第二次安装不产生重复内容；
-- 早期 `layoutVersion: 1` 安装可由同一个 `install` 原地补齐项目 Skill；
+- 早期 `layoutVersion: 1` 安装可由同一个 `install` 迁移到 `harness-graph/`；
 - 用户修改 Workflow 后重复安装不覆盖；
-- Workflow、Skill、Check、Model 都位于项目本地 `harness-next/`；
+- Workflow、Skill、Check、Model 都位于项目本地 `harness-graph/`；
 - Catalog 从项目本地 Workflow 生成；
-- Run 写入项目本地 `harness-next/.state/`；
+- Run 写入项目本地 `harness-graph/.state/`；
 - Check 在正确的 Harness 或 Workspace 目录执行；
 - Router 不依赖业务项目 npm scripts；
 - 项目移动后本地启动器仍可工作；
@@ -925,7 +925,7 @@ node /path/to/harness-next/dist/cli.js install
 
 ## 设计决定
 
-1. `harness-next/` 是项目内可维护基础设施，不是只读缓存；
+1. `harness-graph/` 是项目内可维护基础设施，不是只读缓存；
 2. Workflow、Skill、Check、Model 与业务代码一起提交、Review 和回滚；
 3. Runtime 构建产物随项目提交，运行依赖可由 Lockfile 恢复；
 4. `AGENTS.md` 和 `CLAUDE.md` 保持使用方所有权，Harness 只拥有标记块；

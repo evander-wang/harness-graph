@@ -316,7 +316,7 @@ export async function syncWorkflowCatalog(
   const catalog = await buildWorkflowCatalog(rootDir);
   const command = resolveHarnessLayout(rootDir).workspaceRoot === rootDir
     ? "npm run workflow:sync"
-    : "./harness-next/bin/harness-next sync";
+    : "./harness-graph/bin/harness-graph sync";
   return persistWorkflowCatalog(rootDir, catalog, options.check === true, command);
 }
 
@@ -331,7 +331,7 @@ export async function activateWorkflowCatalog(
   );
   const command = resolveHarnessLayout(rootDir).workspaceRoot === rootDir
     ? "npm run workflow:activate"
-    : "./harness-next/bin/harness-next activate";
+    : "./harness-graph/bin/harness-graph activate";
   return persistWorkflowCatalog(
     rootDir,
     catalog,

@@ -1,6 +1,6 @@
 document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: change-execution-policy
   version: "1.0.0"
   title: 本地变更执行协议

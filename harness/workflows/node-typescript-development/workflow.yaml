@@ -1,6 +1,6 @@
 document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: node-typescript-development
   version: "0.5.0"
   title: Node.js TypeScript 开发

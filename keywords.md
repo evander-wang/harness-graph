@@ -1,4 +1,4 @@
-# Harness Next 关键词
+# Harness Graph 关键词
 
 项目只要求贡献者理解五个核心关键词。
 
@@ -58,7 +58,7 @@ call: load-node-typescript-standards
 skills/load-node-typescript-standards/SKILL.md
 ```
 
-这是引擎仓库的发布源路径；安装后物理路径是 `harness-next/skills/load-node-typescript-standards/SKILL.md`。
+这是引擎仓库的发布源路径；安装后物理路径是 `harness-graph/skills/load-node-typescript-standards/SKILL.md`。
 
 Skill 只完成当前 Step，不决定后续流程。
 
@@ -79,7 +79,7 @@ metadata:
 harness/checks/change-review-result/CHECK.md
 ```
 
-安装后物理路径是 `harness-next/checks/change-review-result/CHECK.md`。
+安装后物理路径是 `harness-graph/checks/change-review-result/CHECK.md`。
 
 Check 必须输出明确状态和可核对证据：
 
@@ -103,7 +103,7 @@ input:
       endpoint: harness://models/node-change-request.schema.json
 ```
 
-在引擎仓库中该 URI 解析到 `harness/models/node-change-request.schema.json`，安装后解析到 `harness-next/models/node-change-request.schema.json`，不会访问网络。
+在引擎仓库中该 URI 解析到 `harness/models/node-change-request.schema.json`，安装后解析到 `harness-graph/models/node-change-request.schema.json`，不会访问网络。
 
 ## 命名规范
 

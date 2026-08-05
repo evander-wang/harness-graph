@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 import { main } from "../src/cli.js";
 
 async function createProject(): Promise<string> {
-  const rootDir = await mkdtemp(join(tmpdir(), "harness-next-cli-"));
+  const rootDir = await mkdtemp(join(tmpdir(), "harness-graph-cli-"));
   await mkdir(join(rootDir, "harness/workflows/example"), { recursive: true });
   await mkdir(join(rootDir, "harness/checks/done"), { recursive: true });
   await mkdir(join(rootDir, "harness/models"), { recursive: true });
@@ -26,7 +26,7 @@ async function createProject(): Promise<string> {
     join(rootDir, "harness/workflows/example/workflow.yaml"),
     `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: cli-example
   version: "0.1.0"
 do:
@@ -110,7 +110,7 @@ async function addWorkflowWithPrerequisite(rootDir: string): Promise<void> {
     join(rootDir, "harness/workflows/standards/workflow.yaml"),
     `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: standards
   version: "1.0.0"
   title: 开发规范
@@ -124,7 +124,7 @@ do:
     join(rootDir, "harness/workflows/development/workflow.yaml"),
     `document:
   dsl: "1.0.3"
-  namespace: harness-next
+  namespace: harness-graph
   name: development
   version: "1.0.0"
   title: 业务开发

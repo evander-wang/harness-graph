@@ -54,7 +54,7 @@
 - [ ] 写失败测试：`project-check` 对通过项目输出 JSON 并返回 0。
 - [ ] 写失败测试：配置问题或脚本失败时输出结构化问题并返回 1。
 - [ ] 在 CLI 用法中增加 `project-check [project-root]`，调用目标目录的 `checkNodeProject()`。
-- [ ] 增加 `npm run project:check`，只作为 Harness Next 开发与直接调试入口。
+- [ ] 增加 `npm run project:check`，只作为 Harness Graph 开发与直接调试入口。
 - [ ] 将两个质量门禁统一为 `node dist/cli.js project-check` 与 `git diff --check`。
 - [ ] 运行 CLI、Check 和 Project Check 相关测试。
 

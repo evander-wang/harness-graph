@@ -1,9 +1,11 @@
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
+import { CURRENT_LAYOUT_VERSION, LEGACY_LAYOUT_VERSION, PRODUCT_NAME } from "./layout.js";
+
 export type InstallationManifest = {
   schemaVersion: 1;
-  layoutVersion: 1;
+  layoutVersion: typeof CURRENT_LAYOUT_VERSION;
   harnessVersion: string;
   installedAt: string;
   runtime?: {
@@ -20,69 +22,99 @@ export type InstallationManifest = {
   };
 };
 
+export type ReadableInstallationManifest = Omit<InstallationManifest, "layoutVersion"> & {
+  layoutVersion: typeof CURRENT_LAYOUT_VERSION | typeof LEGACY_LAYOUT_VERSION;
+};
+
 export type InstallationManifestState = {
-  manifest: InstallationManifest;
+  manifest: ReadableInstallationManifest;
+  needsLayoutMigration: boolean;
   needsProjectSkillMigration: boolean;
   needsRuntimeMigration: boolean;
 };
 
+type ParsedRuntime = {
+  runtime?: InstallationManifest["runtime"];
+  needsMigration: boolean;
+};
+
+function unsupportedManifest(): Error {
+  return new Error(`现有 ${PRODUCT_NAME} 安装清单版本不受支持。`);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw unsupportedManifest();
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseLayoutVersion(value: unknown): ReadableInstallationManifest["layoutVersion"] {
+  if (value === CURRENT_LAYOUT_VERSION || value === LEGACY_LAYOUT_VERSION) return value;
+  throw unsupportedManifest();
+}
+
+function requiredString(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) throw unsupportedManifest();
+  return value;
+}
+
+function parseManagedEntries(value: unknown): {
+  entries: InstallationManifest["managedEntries"];
+  needsMigration: boolean;
+} {
+  const managed = asRecord(value);
+  if (managed.agents !== true || managed.claude !== true || managed.gitignore !== true) {
+    throw unsupportedManifest();
+  }
+  const hasSkills = managed.codexSkill === true && managed.claudeSkill === true;
+  const hasNoSkills = managed.codexSkill === undefined && managed.claudeSkill === undefined;
+  if (!hasSkills && !hasNoSkills) throw unsupportedManifest();
+  return {
+    entries: {
+      agents: true,
+      claude: true,
+      gitignore: true,
+      ...(hasSkills ? { codexSkill: true, claudeSkill: true } : {}),
+    },
+    needsMigration: hasNoSkills,
+  };
+}
+
+function parseRuntime(value: unknown): ParsedRuntime {
+  if (value === undefined) return { needsMigration: true };
+  const runtime = asRecord(value);
+  const version = requiredString(runtime.version);
+  const hash = requiredString(runtime.hash);
+  if (!/^[a-f0-9]{64}$/u.test(hash) || runtime.stateSchemaVersion !== 1) {
+    throw unsupportedManifest();
+  }
+  return {
+    runtime: { version, hash, stateSchemaVersion: 1 },
+    needsMigration: false,
+  };
+}
+
 export async function readInstallationManifest(
   path: string,
 ): Promise<InstallationManifestState> {
-  const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
-  const value = typeof parsed === "object" && parsed !== null
-    ? parsed as Record<string, unknown>
-    : {};
-  const managed = typeof value.managedEntries === "object" && value.managedEntries !== null
-    ? value.managedEntries as Record<string, unknown>
-    : {};
-  const hasProjectSkills = managed.codexSkill === true && managed.claudeSkill === true;
-  const isLegacy = managed.codexSkill === undefined && managed.claudeSkill === undefined;
-  const runtime = value.runtime;
-  const hasRuntime = typeof runtime === "object" && runtime !== null && !Array.isArray(runtime);
-  const runtimeRecord = hasRuntime ? runtime as Record<string, unknown> : {};
-  const hasValidRuntime =
-    typeof runtimeRecord.version === "string" && runtimeRecord.version.length > 0 &&
-    typeof runtimeRecord.hash === "string" && /^[a-f0-9]{64}$/u.test(runtimeRecord.hash) &&
-    runtimeRecord.stateSchemaVersion === 1;
-  const isLegacyRuntime = runtime === undefined;
-  if (
-    value.schemaVersion !== 1 ||
-    value.layoutVersion !== 1 ||
-    typeof value.harnessVersion !== "string" ||
-    typeof value.installedAt !== "string" ||
-    managed.agents !== true ||
-    managed.claude !== true ||
-    managed.gitignore !== true ||
-    (!hasProjectSkills && !isLegacy) ||
-    (runtime !== undefined && (!hasRuntime || !hasValidRuntime))
-  ) {
-    throw new Error("现有 Harness Next 安装清单版本不受支持。");
-  }
+  const value = asRecord(JSON.parse(await readFile(path, "utf8")) as unknown);
+  if (value.schemaVersion !== 1) throw unsupportedManifest();
+  const layoutVersion = parseLayoutVersion(value.layoutVersion);
+  const managed = parseManagedEntries(value.managedEntries);
+  const runtime = parseRuntime(value.runtime);
   return {
     manifest: {
       schemaVersion: 1,
-      layoutVersion: 1,
-      harnessVersion: value.harnessVersion,
-      installedAt: value.installedAt,
-      ...(hasValidRuntime
-        ? {
-            runtime: {
-              version: runtimeRecord.version as string,
-              hash: runtimeRecord.hash as string,
-              stateSchemaVersion: 1 as const,
-            },
-          }
-        : {}),
-      managedEntries: {
-        agents: true,
-        claude: true,
-        gitignore: true,
-        ...(hasProjectSkills ? { codexSkill: true, claudeSkill: true } : {}),
-      },
+      layoutVersion,
+      harnessVersion: requiredString(value.harnessVersion),
+      installedAt: requiredString(value.installedAt),
+      ...(runtime.runtime === undefined ? {} : { runtime: runtime.runtime }),
+      managedEntries: managed.entries,
     },
-    needsProjectSkillMigration: isLegacy,
-    needsRuntimeMigration: isLegacyRuntime,
+    needsLayoutMigration: layoutVersion === LEGACY_LAYOUT_VERSION,
+    needsProjectSkillMigration: managed.needsMigration,
+    needsRuntimeMigration: runtime.needsMigration,
   };
 }
 

@@ -14,7 +14,7 @@ Skill 不得自行决定或执行后续 Step。
 
 ## Workflow 入口
 
-`skills/harness-next/SKILL.md` 是面向用户和宿主的规范入口。安装器生成的 `.agents/skills/harness-next/SKILL.md` 与 `.claude/skills/harness-next/SKILL.md` 只负责加载它，不复制路由规则。
+`skills/harness-graph/SKILL.md` 是面向用户和宿主的规范入口。安装器生成的 `.agents/skills/harness-graph/SKILL.md` 与 `.claude/skills/harness-graph/SKILL.md` 只负责加载它，不复制路由规则。
 
 `skills/workflow-router/SKILL.md` 是唯一 Runtime Workflow 入口。规范入口把完整用户请求和显式 Workflow 名称交给它；Router 只读取生成的 Catalog，选择一个入口 Workflow，并自动调用项目本地 Runtime。
 

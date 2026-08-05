@@ -9,10 +9,10 @@ description: 从 Workflow Catalog 选择并自动执行当前工作区的本地 
 
 ## 路由
 
-1. 读取业务项目原有的 `AGENTS.md`、`CLAUDE.md` 和其他项目规范，并将托管块以外的规则作为当前任务约束；不要把 Harness Next 引擎仓库自身的贡献规范套用到业务项目。
-2. 执行 `./harness-next/bin/harness-next preflight`；失败时立即停止，不得绕过。
-3. 执行 `./harness-next/bin/harness-next activate --check`，校验 Catalog 是否过期；过期时停止并报告，不能自行使用旧 Catalog。
-4. 只读取 `harness-next/generated/workflow-catalog.json`。
+1. 读取业务项目原有的 `AGENTS.md`、`CLAUDE.md` 和其他项目规范，并将托管块以外的规则作为当前任务约束；不要把 Harness Graph 引擎仓库自身的贡献规范套用到业务项目。
+2. 执行 `./harness-graph/bin/harness-graph preflight`；失败时立即停止，不得绕过。
+3. 执行 `./harness-graph/bin/harness-graph activate --check`，校验 Catalog 是否过期；过期时停止并报告，不能自行使用旧 Catalog。
+4. 只读取 `harness-graph/generated/workflow-catalog.json`。
 5. 只从 Catalog 的 `entryWorkflows` 中选择 Workflow；`workflows` 中但不在 `entryWorkflows` 的项只能作为前置依赖，不能被用户直接选择。
 6. 用户明确指定 Workflow 名称或 Alias 时直接选择；否则根据 `routing.when` 和 `routing.notWhen` 选择。
 7. 只有一个明确候选时继续；多个候选或没有候选时停止并报告。
@@ -24,15 +24,15 @@ description: 从 Workflow Catalog 选择并自动执行当前工作区的本地 
 1. 从 Catalog 的 `prerequisites` 递归解析前置 Workflow，按依赖顺序去重后串行执行；不得并行启动。
 2. 为当前宿主任务确定稳定的 `executionKey`，恢复时必须复用；前置 Workflow 使用派生 Key `<executionKey>:prerequisite:<workflow-name>`。
 3. 先将每个前置 Workflow 执行到 `completed`。没有 `input` Schema 的前置 Workflow 使用 `{}` 作为输入；前置 Workflow 的 Skill 读取到的上下文保留在当前 Agent 任务中。任一前置 Workflow `blocked`、`failed` 或 `cancelled` 时停止，不启动目标 Workflow。
-4. 将目标 Workflow Input Schema 要求的最小输入写到 `harness-next/.state/tmp/`，禁止写入 Secret 和完整 Prompt。普通开发 Workflow 的 Workspace 固定为业务项目根；只有“配置另一个项目”等明确场景才在业务 Input 中写入 `projectRoot`。
-5. 自动执行 `./harness-next/bin/harness-next start <workflow-path> <execution-key> <input-json>`。
+4. 将目标 Workflow Input Schema 要求的最小输入写到 `harness-graph/.state/tmp/`，禁止写入 Secret 和完整 Prompt。普通开发 Workflow 的 Workspace 固定为业务项目根；只有“配置另一个项目”等明确场景才在业务 Input 中写入 `projectRoot`。
+5. 自动执行 `./harness-graph/bin/harness-graph start <workflow-path> <execution-key> <input-json>`。
 6. 只加载返回的 `step.skillPath`、`step.checkPaths` 和必要输入。
 7. 执行当前 Skill 和需要 Agent 判断的 Check。
 8. 当前 Skill 或 Check 缺少可由用户补充的决定、授权或选择时，保持当前 Step 为 `in_progress`，不写 Step Result，也不执行 `continue`。向用户提出最小必要问题；用户回答后复用相同的 `executionKey`、`runId` 和 `revision` 继续当前 Step。只有无法通过用户回答继续时才提交 `blocked`。
 9. 将 `runId`、`revision`、`stepId`、`status`、`evidence` 和可选 `data` 写成 Step Result JSON。
-10. 将结果写到 `harness-next/.state/tmp/`，自动执行 `./harness-next/bin/harness-next continue <run-id> <result-json>`。
+10. 将结果写到 `harness-graph/.state/tmp/`，自动执行 `./harness-graph/bin/harness-graph continue <run-id> <result-json>`。
 11. 返回下一个 Step 时重复第 6-10 步；`completed` 时进入执行摘要询问；`blocked`、`failed` 或 `cancelled` 时停止并输出必要的失败摘要。
-12. Workflow `completed` 后，如果当前宿主支持与用户交互，先询问：`是否输出本次 Workflow 执行摘要（Workflow、Step、Transition 和 Check）？` 用户确认后执行 `./harness-next/bin/harness-next report <run-id> --format markdown` 并交付结果；用户拒绝时不输出详细报告。
+12. Workflow `completed` 后，如果当前宿主支持与用户交互，先询问：`是否输出本次 Workflow 执行摘要（Workflow、Step、Transition 和 Check）？` 用户确认后执行 `./harness-graph/bin/harness-graph report <run-id> --format markdown` 并交付结果；用户拒绝时不输出详细报告。
 13. 无法交互时不询问，只保留 Runtime 已保存的 `executionTrace`；不得因为无法询问而改变 Workflow 结果。
 
 Runtime 返回 `interrupted` 时，不得直接重做 Step。先检查工作区现状和已有证据，再提交继续、返工或阻塞结果。

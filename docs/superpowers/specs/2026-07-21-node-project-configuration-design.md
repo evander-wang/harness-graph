@@ -151,4 +151,4 @@ NodeProjectProfile
 - 任一命令失败时 CLI 非零退出；
 - 新 Workflow 可编译、可生成 Catalog 和 SVG；
 - 现有 Node.js 开发 Workflow 复用相同质量门禁；
-- 当前 Harness Next 仓库通过新的 `project-check`、`check:all` 和全部 Workflow 校验。
+- 当前 Harness Graph 仓库通过新的 `project-check`、`check:all` 和全部 Workflow 校验。

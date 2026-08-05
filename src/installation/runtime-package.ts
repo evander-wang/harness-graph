@@ -13,7 +13,7 @@ export type RuntimePackageJson = {
   type: "module";
   packageManager: string;
   bin: {
-    "harness-next": string;
+    "harness-graph": string;
   };
   engines: {
     node: string;
@@ -71,8 +71,8 @@ export function projectRuntimePackage(
     throw new Error(`${displayPath}.type 必须为 module。`);
   }
   const bin = requiredStringRecord(packageJson, "bin", displayPath);
-  if (bin["harness-next"] === undefined) {
-    throw new Error(`${displayPath}.bin.harness-next 缺失。`);
+  if (bin["harness-graph"] === undefined) {
+    throw new Error(`${displayPath}.bin.harness-graph 缺失。`);
   }
   const engines = requiredStringRecord(packageJson, "engines", displayPath);
   if (engines.node === undefined || engines.npm === undefined) {
@@ -85,7 +85,7 @@ export function projectRuntimePackage(
     description: requiredString(packageJson, "description", displayPath),
     type: "module",
     packageManager: requiredString(packageJson, "packageManager", displayPath),
-    bin: { "harness-next": bin["harness-next"] },
+    bin: { "harness-graph": bin["harness-graph"] },
     engines: { node: engines.node, npm: engines.npm },
     dependencies: requiredStringRecord(packageJson, "dependencies", displayPath),
   };
