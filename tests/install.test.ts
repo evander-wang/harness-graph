@@ -136,6 +136,9 @@ describe("installHarnessProject", () => {
     await expect(
       access(join(workspaceRoot, "harness-graph/bin/harness-graph")),
     ).resolves.toBeUndefined();
+    await expect(
+      access(join(workspaceRoot, "harness-graph/runtime/dist/web/index.html")),
+    ).resolves.toBeUndefined();
     await expect(access(join(workspaceRoot, "harness-next"))).rejects.toThrow();
     const manifest = JSON.parse(
       await readFile(join(workspaceRoot, "harness-graph/installation.json"), "utf8"),
