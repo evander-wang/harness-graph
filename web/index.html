@@ -64,8 +64,8 @@
               <button class="tool-button" id="zoom-out" type="button" aria-label="缩小" title="缩小">−</button>
               <span class="zoom-readout" id="zoom-readout">100%</span>
               <button class="tool-button" id="zoom-in" type="button" aria-label="放大" title="放大">+</button>
-              <button class="tool-button tool-button-wide" id="fit-view" type="button" aria-label="适配画布" title="适配画布">适配</button>
-              <button class="tool-button" id="grid-toggle" type="button" aria-label="切换网格" title="切换网格">⌗</button>
+              <button class="tool-button tool-button-wide" id="fit-view" type="button" aria-label="适配画布" title="将流程图缩放并居中到当前画布">适配</button>
+              <button class="tool-button tool-button-wide is-active" id="grid-toggle" type="button" aria-label="显示或隐藏网格" aria-pressed="true" title="显示或隐藏背景网格">网格</button>
             </div>
           </div>
           <div class="diagnostic-banner is-hidden" id="diagnostic-banner"></div>
@@ -98,6 +98,26 @@
         </aside>
       </div>
       <div class="mobile-scrim" id="mobile-scrim"></div>
+      <div class="file-modal" id="file-modal" hidden>
+        <div class="file-modal-backdrop" data-close-file-modal></div>
+        <section class="file-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="file-modal-title">
+          <header class="file-modal-header">
+            <div class="file-modal-title-wrap">
+              <span class="file-modal-kind" id="file-modal-kind">FILE</span>
+              <div>
+                <p class="eyebrow">源文件</p>
+                <h2 id="file-modal-title">文件预览</h2>
+                <p class="file-modal-path mono" id="file-modal-path"></p>
+              </div>
+            </div>
+            <div class="file-modal-actions">
+              <button class="text-button" id="modal-copy-file" type="button">复制内容</button>
+              <button class="icon-button" id="file-modal-close" type="button" aria-label="关闭文件预览" title="关闭文件预览">×</button>
+            </div>
+          </header>
+          <div class="file-modal-body" id="file-modal-body"></div>
+        </section>
+      </div>
     </div>
     <script type="module" src="/app.js"></script>
   </body>

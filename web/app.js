@@ -10,6 +10,8 @@ const state = {
   transform: { x: 0, y: 0, scale: 1 },
   grid: true,
   pointer: null,
+  graphLayout: null,
+  draggingNode: null,
   mapMode: "current",
 };
 
@@ -32,6 +34,12 @@ const elements = {
   sidebar: document.querySelector("#sidebar"),
   inspector: document.querySelector("#inspector"),
   scrim: document.querySelector("#mobile-scrim"),
+  fileModal: document.querySelector("#file-modal"),
+  fileModalTitle: document.querySelector("#file-modal-title"),
+  fileModalPath: document.querySelector("#file-modal-path"),
+  fileModalKind: document.querySelector("#file-modal-kind"),
+  fileModalBody: document.querySelector("#file-modal-body"),
+  fileModalClose: document.querySelector("#file-modal-close"),
 };
 
 function escapeHtml(value) {
@@ -104,7 +112,7 @@ function activeGraph() {
 
 function activeSteps() {
   return state.mapMode === "expanded" && state.detail?.expandedGraph
-    ? state.detail.expandedSteps
+    ? state.detail.expandedSteps ?? []
     : state.detail?.steps ?? [];
 }
 
@@ -192,11 +200,16 @@ function renderGraph() {
     return;
   }
   const layout = layoutGraph(graph);
-  state.positions = layout.positions;
-  if (!state.transform.scale || state.transform.scale === 1) fitView(layout);
+  const isNewGraph = state.graphLayout?.id !== graph.id;
+  if (isNewGraph) {
+    state.positions = layout.positions;
+    state.graphLayout = { id: graph.id, width: layout.width, height: layout.height };
+  }
+  const graphLayout = state.graphLayout ?? layout;
+  const shouldFit = isNewGraph && (!state.transform.scale || state.transform.scale === 1);
   elements.graphEmpty.classList.add("is-hidden");
   elements.graphSvg.classList.add("is-visible");
-  elements.graphSvg.setAttribute("viewBox", `0 0 ${layout.width} ${layout.height}`);
+  elements.graphSvg.setAttribute("viewBox", `0 0 ${graphLayout.width} ${graphLayout.height}`);
   const defs = `<defs><marker id="arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M 0 0 L 8 4 L 0 8 z"></path></marker></defs>`;
   const edges = graph.edges.map((edge) => {
     const loop = (state.positions.get(edge.targetId)?.level ?? 0) <= (state.positions.get(edge.sourceId)?.level ?? 0);
@@ -218,9 +231,10 @@ function renderGraph() {
       : type === "start" || type === "end"
         ? `<circle cx="${position.x}" cy="${position.y}" r="${type === "start" ? 18 : 22}"></circle>`
         : `<rect x="${position.x - position.width / 2}" y="${position.y - position.height / 2}" width="${position.width}" height="${position.height}" rx="10"></rect>`;
-    return `<g class="graph-node node-${escapeHtml(type)}${isPrerequisite ? " is-prerequisite" : ""}${isSelected ? " is-selected" : ""}" data-node-id="${escapeHtml(node.id)}" tabindex="0" role="button" aria-label="${escapeHtml(typeLabel(type))}：${escapeHtml(label)}">${shape}<text class="node-label" x="${position.x}" y="${position.y - (type === "start" || type === "end" ? -34 : 7)}"><tspan>${escapeHtml(label)}</tspan></text>${type === "skill" ? `<text class="node-kind" x="${position.x}" y="${position.y + 19}">Skill</text>` : ""}</g>`;
+    return `<g class="graph-node node-${escapeHtml(type)}${isPrerequisite ? " is-prerequisite" : ""}${isSelected ? " is-selected" : ""}${state.draggingNode === node.id ? " is-dragging" : ""}" data-node-id="${escapeHtml(node.id)}" tabindex="0" role="button" aria-label="${escapeHtml(typeLabel(type))}：${escapeHtml(label)}">${shape}<text class="node-label" x="${position.x}" y="${position.y - (type === "start" || type === "end" ? -34 : 7)}"><tspan>${escapeHtml(label)}</tspan></text>${type === "skill" ? `<text class="node-kind" x="${position.x}" y="${position.y + 19}">Skill</text>` : ""}</g>`;
   }).join("");
   elements.graphSvg.innerHTML = `${defs}<g class="graph-content" transform="translate(${state.transform.x} ${state.transform.y}) scale(${state.transform.scale})">${edges}${nodes}</g>`;
+  if (shouldFit) fitView();
   updateZoomReadout();
 }
 
@@ -228,12 +242,9 @@ function updateZoomReadout() {
   elements.zoomReadout.textContent = `${Math.round(state.transform.scale * 100)}%`;
 }
 
-function fitView(layout = layoutGraph(activeGraph() ?? { nodes: [], edges: [] })) {
-  const rect = elements.graphViewport.getBoundingClientRect();
-  const scale = Math.min((rect.width - 64) / layout.width, (rect.height - 64) / layout.height, 1.2);
-  state.transform.scale = Math.max(0.42, Math.min(scale, 1.2));
-  state.transform.x = (rect.width - layout.width * state.transform.scale) / 2;
-  state.transform.y = (rect.height - layout.height * state.transform.scale) / 2;
+function fitView() {
+  if (!activeGraph()) return;
+  state.transform = { x: 0, y: 0, scale: 1 };
   renderGraphWithoutLayout();
 }
 
@@ -241,6 +252,22 @@ function renderGraphWithoutLayout() {
   const content = elements.graphSvg.querySelector(".graph-content");
   if (content) content.setAttribute("transform", `translate(${state.transform.x} ${state.transform.y}) scale(${state.transform.scale})`);
   updateZoomReadout();
+}
+
+function clientToSvgPoint(clientX, clientY) {
+  const matrix = elements.graphSvg.getScreenCTM();
+  if (matrix) {
+    const point = elements.graphSvg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    return point.matrixTransform(matrix.inverse());
+  }
+  const rect = elements.graphSvg.getBoundingClientRect();
+  const viewBox = elements.graphSvg.viewBox.baseVal;
+  return {
+    x: (clientX - rect.left) * viewBox.width / Math.max(rect.width, 1),
+    y: (clientY - rect.top) * viewBox.height / Math.max(rect.height, 1),
+  };
 }
 
 function renderDiagnostic() {
@@ -251,6 +278,16 @@ function renderDiagnostic() {
     : "";
 }
 
+function filesForStep(detail, step) {
+  const workflowPath = step.workflowName === detail.catalog.name
+    ? detail.catalog.path
+    : `harness/workflows/${step.workflowName}/workflow.yaml`;
+  const paths = new Set([workflowPath]);
+  if (step.call) paths.add(`harness/skills/${step.call}/SKILL.md`);
+  step.checks.forEach((check) => paths.add(`harness/checks/${check}/CHECK.md`));
+  return detail.files.filter((file) => paths.has(file.path));
+}
+
 function renderInspector() {
   const detail = state.detail;
   if (!detail) {
@@ -259,18 +296,11 @@ function renderInspector() {
     return;
   }
   const step = activeSteps().find((item) => item.nodeId === state.selectedNode);
-  if (state.activeFile) {
-    const file = detail.files.find((item) => item.path === state.activeFile);
-    if (file) {
-      renderFileInspector(file);
-      return;
-    }
-  }
   elements.inspectorTitle.textContent = step ? step.id : "Workflow 摘要";
   const status = statusFor(detail);
   const graphEdges = activeGraph()?.edges ?? [];
   const outgoing = step ? graphEdges.filter((edge) => edge.sourceId === step.nodeId) : [];
-  const files = step ? detail.files.filter((file) => file.path.includes(`/${step.call}/`) || step.checks.some((check) => file.path.includes(`/${check}/`)) || file.kind === "workflow" || (step.workflowName !== undefined && file.path.includes(`/${step.workflowName}/`))) : detail.files;
+  const files = step ? filesForStep(detail, step) : detail.files;
   elements.inspectorBody.innerHTML = `
     <section class="summary-block">
       <div class="summary-title-row"><span class="type-chip ${step ? "type-skill" : "type-workflow"}">${step ? typeLabel(step.kind) : "Workflow"}</span><span class="status-text status-${status}">${statusLabel(status)}</span></div>
@@ -282,10 +312,24 @@ function renderInspector() {
     ${detail.diagnostics.length ? `<section class="diagnostics-block"><div class="section-heading"><h3>编译诊断</h3><span>${detail.diagnostics.length}</span></div>${detail.diagnostics.map((diagnostic) => `<div class="diagnostic-item"><strong>${escapeHtml(diagnostic.code)}</strong><span>${escapeHtml(diagnostic.message)}</span></div>`).join("")}</section>` : ""}`;
 }
 
-function renderFileInspector(file) {
-  elements.inspectorTitle.textContent = file.label;
+function renderCodeFrame(file, className = "") {
   const lines = file.content.split("\n");
-  elements.inspectorBody.innerHTML = `<section class="file-viewer"><div class="file-viewer-toolbar"><span class="mono file-path">${escapeHtml(file.path)}</span><button class="text-button" id="copy-file" type="button">复制内容</button></div><div class="code-frame"><div class="line-numbers">${lines.map((_, index) => `<span>${index + 1}</span>`).join("")}</div><pre><code>${escapeHtml(file.content)}</code></pre></div><button class="back-button" id="back-to-inspector" type="button">← 返回详情</button></section>`;
+  return `<div class="code-frame ${className}"><div class="line-numbers">${lines.map((_, index) => `<span>${index + 1}</span>`).join("")}</div><pre><code>${escapeHtml(file.content)}</code></pre></div>`;
+}
+
+function openFileModal(file) {
+  elements.fileModalTitle.textContent = file.label;
+  elements.fileModalPath.textContent = file.path;
+  elements.fileModalKind.textContent = fileIcon(file.kind);
+  elements.fileModalBody.innerHTML = renderCodeFrame(file, "code-frame-modal");
+  elements.fileModal.hidden = false;
+  document.body.classList.add("modal-open");
+  elements.fileModalClose?.focus();
+}
+
+function closeFileModal() {
+  elements.fileModal.hidden = true;
+  document.body.classList.remove("modal-open");
 }
 
 function loadWorkflow(name) {
@@ -302,6 +346,8 @@ async function selectWorkflow(name) {
   state.activeFile = null;
   state.mapMode = "current";
   state.transform = { x: 0, y: 0, scale: 1 };
+  state.positions = new Map();
+  state.graphLayout = null;
   renderWorkflowList();
   if (!state.workflow) return;
   elements.canvasTitle.textContent = state.workflow.title || state.workflow.name;
@@ -337,28 +383,74 @@ async function loadCatalog() {
   if (selected) await selectWorkflow(selected.name);
 }
 
-function changeZoom(delta) {
-  state.transform.scale = Math.max(0.42, Math.min(1.8, state.transform.scale + delta));
+function changeZoom(delta, anchor) {
+  const previousScale = state.transform.scale;
+  const nextScale = Math.max(0.42, Math.min(1.8, previousScale + delta));
+  if (anchor && nextScale !== previousScale) {
+    const point = clientToSvgPoint(anchor.clientX, anchor.clientY);
+    const ratio = nextScale / previousScale;
+    state.transform.x = point.x - (point.x - state.transform.x) * ratio;
+    state.transform.y = point.y - (point.y - state.transform.y) * ratio;
+  }
+  state.transform.scale = nextScale;
   renderGraphWithoutLayout();
 }
 
+function selectNode(nodeId) {
+  state.selectedNode = nodeId;
+  state.activeFile = null;
+  renderGraph();
+  renderInspector();
+  setMobilePanel("inspector");
+}
+
 function onPointerDown(event) {
-  if (event.target.closest?.(".graph-node")) return;
-  state.pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, transform: { ...state.transform } };
-  elements.graphSvg.setPointerCapture(event.pointerId);
-  elements.graphViewport.classList.add("is-panning");
+  if (event.button !== 0 && event.pointerType !== "touch") return;
+  const node = event.target.closest?.(".graph-node");
+  const nodeId = node?.dataset.nodeId;
+  const position = nodeId === undefined ? undefined : state.positions.get(nodeId);
+  const point = clientToSvgPoint(event.clientX, event.clientY);
+  state.pointer = nodeId !== undefined && position
+    ? { id: event.pointerId, mode: "node", x: event.clientX, y: event.clientY, point, nodeId, position: { ...position }, moved: false }
+    : { id: event.pointerId, mode: "canvas", x: event.clientX, y: event.clientY, point, transform: { ...state.transform }, moved: false };
+  elements.graphViewport.setPointerCapture(event.pointerId);
 }
 
 function onPointerMove(event) {
   if (!state.pointer || state.pointer.id !== event.pointerId) return;
-  state.transform.x = state.pointer.transform.x + event.clientX - state.pointer.x;
-  state.transform.y = state.pointer.transform.y + event.clientY - state.pointer.y;
-  renderGraphWithoutLayout();
+  const dx = event.clientX - state.pointer.x;
+  const dy = event.clientY - state.pointer.y;
+  if (!state.pointer.moved && Math.hypot(dx, dy) < 4) return;
+  state.pointer.moved = true;
+  const currentPoint = clientToSvgPoint(event.clientX, event.clientY);
+  const svgDx = currentPoint.x - state.pointer.point.x;
+  const svgDy = currentPoint.y - state.pointer.point.y;
+  if (state.pointer.mode === "node") {
+    state.draggingNode = state.pointer.nodeId;
+    const position = state.positions.get(state.pointer.nodeId);
+    if (!position) return;
+    position.x = state.pointer.position.x + svgDx / state.transform.scale;
+    position.y = state.pointer.position.y + svgDy / state.transform.scale;
+  } else {
+    state.transform.x = state.pointer.transform.x + svgDx;
+    state.transform.y = state.pointer.transform.y + svgDy;
+    elements.graphViewport.classList.add("is-panning");
+  }
+  renderGraph();
 }
 
-function onPointerUp() {
+function onPointerUp(event) {
+  if (state.pointer?.id !== event.pointerId) return;
+  const pointer = state.pointer;
+  const moved = pointer.moved;
+  const shouldSelectNode = event.type === "pointerup" && !moved && pointer.mode === "node";
+  if (moved || shouldSelectNode) elements.graphViewport.dataset.suppressClick = "true";
+  if (elements.graphViewport.hasPointerCapture(event.pointerId)) elements.graphViewport.releasePointerCapture(event.pointerId);
   state.pointer = null;
+  state.draggingNode = null;
   elements.graphViewport.classList.remove("is-panning");
+  if (moved && state.detail) renderGraph();
+  if (shouldSelectNode) selectNode(pointer.nodeId);
 }
 
 function bindEvents() {
@@ -368,6 +460,8 @@ function bindEvents() {
     state.selectedNode = null;
     state.activeFile = null;
     state.transform = { x: 0, y: 0, scale: 1 };
+    state.positions = new Map();
+    state.graphLayout = null;
     syncMapMode();
     renderGraph();
     renderInspector();
@@ -382,38 +476,53 @@ function bindEvents() {
     if (item) selectWorkflow(item.dataset.workflow);
   });
   elements.graphSvg.addEventListener("click", (event) => {
+    if (elements.graphViewport.dataset.suppressClick === "true") {
+      delete elements.graphViewport.dataset.suppressClick;
+      return;
+    }
     const node = event.target.closest?.(".graph-node");
     if (!node) return;
-    state.selectedNode = node.dataset.nodeId;
-    state.activeFile = null;
-    renderGraph();
-    renderInspector();
-    setMobilePanel("inspector");
+    selectNode(node.dataset.nodeId);
   });
   elements.graphSvg.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") event.target.click(); });
-  elements.graphSvg.addEventListener("pointerdown", onPointerDown);
-  elements.graphSvg.addEventListener("pointermove", onPointerMove);
-  elements.graphSvg.addEventListener("pointerup", onPointerUp);
-  elements.graphSvg.addEventListener("pointercancel", onPointerUp);
-  elements.graphViewport.addEventListener("wheel", (event) => { event.preventDefault(); changeZoom(event.deltaY < 0 ? 0.08 : -0.08); }, { passive: false });
-  elements.inspectorBody.addEventListener("click", async (event) => {
+  elements.graphViewport.addEventListener("pointerdown", onPointerDown);
+  elements.graphViewport.addEventListener("pointermove", onPointerMove);
+  elements.graphViewport.addEventListener("pointerup", onPointerUp);
+  elements.graphViewport.addEventListener("pointercancel", onPointerUp);
+  elements.graphViewport.addEventListener("wheel", (event) => { event.preventDefault(); changeZoom(event.deltaY < 0 ? 0.08 : -0.08, event); }, { passive: false });
+  elements.inspectorBody.addEventListener("click", (event) => {
     const fileButton = event.target.closest?.("[data-file]");
-    if (fileButton) { state.activeFile = fileButton.dataset.file; renderInspector(); return; }
-    if (event.target.closest?.("#back-to-inspector")) { state.activeFile = null; renderInspector(); return; }
-    if (event.target.closest?.("#copy-file") && state.activeFile) {
-      const file = state.detail.files.find((item) => item.path === state.activeFile);
-      if (file) await navigator.clipboard?.writeText(file.content);
+    if (fileButton) {
+      state.activeFile = fileButton.dataset.file;
+      const file = state.detail?.files.find((item) => item.path === state.activeFile);
+      renderInspector();
+      if (file) openFileModal(file);
+      return;
     }
   });
   document.querySelector("#zoom-in").addEventListener("click", () => changeZoom(0.1));
   document.querySelector("#zoom-out").addEventListener("click", () => changeZoom(-0.1));
-  document.querySelector("#fit-view").addEventListener("click", () => { state.transform.scale = 1; renderGraph(); });
-  document.querySelector("#grid-toggle").addEventListener("click", () => { state.grid = !state.grid; elements.graphViewport.classList.toggle("no-grid", !state.grid); });
+  document.querySelector("#fit-view").addEventListener("click", fitView);
+  document.querySelector("#grid-toggle").addEventListener("click", (event) => {
+    state.grid = !state.grid;
+    event.currentTarget.classList.toggle("is-active", state.grid);
+    event.currentTarget.setAttribute("aria-pressed", String(state.grid));
+    elements.graphViewport.classList.toggle("no-grid", !state.grid);
+  });
+  document.querySelector("#file-modal-close").addEventListener("click", closeFileModal);
+  document.querySelector("[data-close-file-modal]").addEventListener("click", closeFileModal);
+  document.querySelector("#modal-copy-file").addEventListener("click", async () => {
+    const file = state.detail?.files.find((item) => item.path === state.activeFile);
+    if (file) await navigator.clipboard?.writeText(file.content);
+  });
   document.querySelector("#refresh-button").addEventListener("click", () => loadCatalog().catch(showFatalError));
   document.querySelector("#nav-toggle").addEventListener("click", () => setMobilePanel("sidebar"));
   document.querySelector("#inspector-toggle").addEventListener("click", () => setMobilePanel("inspector"));
   document.querySelector("#inspector-close").addEventListener("click", () => setMobilePanel(null));
   elements.scrim.addEventListener("click", () => setMobilePanel(null));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.fileModal.hidden) closeFileModal();
+  });
   window.addEventListener("resize", () => { if (state.detail) renderGraph(); });
 }
 
