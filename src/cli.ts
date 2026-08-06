@@ -34,6 +34,7 @@ import {
   renderWorkflowExecutionReport,
 } from "./workflow/report.js";
 import { renderWorkflowSvg } from "./workflow/svg-renderer.js";
+import { startWorkflowUiServer } from "./workflow/ui-server.js";
 
 export type CliIo = {
   cwd: string;
@@ -69,7 +70,7 @@ function printUsage(io: CliIo): void {
   io.stderr(
     "用法：harness-graph " +
       "<install|preflight|route|doctor|project-check|node-policy-check|validate|diagram|image|" +
-      "sync|activate|start|continue|cancel|report> [...args]",
+      "sync|activate|start|continue|cancel|report|ui> [...args]",
   );
 }
 
@@ -490,6 +491,25 @@ async function routeCommand(io: CliIo): Promise<number> {
   }
 }
 
+async function uiCommand(portArgument: string | undefined, io: CliIo): Promise<number> {
+  const port = portArgument === undefined ? 4173 : Number(portArgument);
+  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+    io.stderr("ui 端口必须是 0 到 65535 之间的整数。");
+    return 2;
+  }
+  try {
+    const paths = commandPaths(io);
+    await startWorkflowUiServer({
+      rootDir: paths.installed ? paths.harnessRoot : paths.projectRoot,
+      port,
+    });
+    return 0;
+  } catch (error: unknown) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
 function missingArguments(io: CliIo): number {
   printUsage(io);
   return 2;
@@ -539,6 +559,8 @@ const COMMAND_HANDLERS: Readonly<Record<string, CommandHandler>> = {
           option === "--format" ? optionValue : option?.replace(/^--format=/u, ""),
           io,
         ),
+  ui: ([port], io) => uiCommand(port, io),
+  "workflow-ui": ([port], io) => uiCommand(port, io),
 };
 
 export async function main(argv: string[], io: CliIo): Promise<number> {

@@ -30,8 +30,9 @@ describe("Runtime package", () => {
   test("不依赖发布包根目录的 package-lock.json", async () => {
     const sourceRoot = await mkdtemp(join(tmpdir(), "harness-graph-runtime-source-"));
     const temporaryRoot = await mkdtemp(join(tmpdir(), "harness-graph-runtime-stage-"));
-    await mkdir(join(sourceRoot, "dist"));
+    await mkdir(join(sourceRoot, "dist/web"), { recursive: true });
     await writeFile(join(sourceRoot, "dist/cli.js"), "#!/usr/bin/env node\n", "utf8");
+    await writeFile(join(sourceRoot, "dist/web/index.html"), "<!doctype html><title>Workflow UI</title>\n", "utf8");
     await writeFile(
       join(sourceRoot, "package.json"),
       `${JSON.stringify(publicPackage, null, 2)}\n`,
@@ -49,6 +50,8 @@ describe("Runtime package", () => {
     }
 
     await expect(access(join(result.root, "package-lock.json"))).resolves.toBeUndefined();
+    await expect(readFile(join(result.root, "dist/web/index.html"), "utf8"))
+      .resolves.toContain("Workflow UI");
     const runtimePackage = JSON.parse(
       await readFile(join(result.root, "package.json"), "utf8"),
     ) as { private?: boolean };

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Harness Graph · Workflow 工作台</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">HG</div>
+          <div>
+            <div class="brand-name">Harness Graph</div>
+            <div class="brand-subtitle">Workflow 工作台</div>
+          </div>
+        </div>
+        <button class="icon-button mobile-only" id="nav-toggle" type="button" aria-label="打开 Workflow 导航" title="打开 Workflow 导航">☰</button>
+        <div class="topbar-context" id="topbar-context">
+          <span class="context-kicker">当前 Workflow</span>
+          <strong id="topbar-workflow">加载中</strong>
+          <span class="status-pill" id="topbar-status">检查中</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="refresh-button" type="button" aria-label="刷新数据" title="刷新数据">↻</button>
+          <button class="icon-button" id="inspector-toggle" type="button" aria-label="打开详情面板" title="打开详情面板">☷</button>
+        </div>
+      </header>
+
+      <div class="workspace" id="workspace">
+        <aside class="sidebar" id="sidebar" aria-label="Workflow 导航">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">目录</p>
+              <h1>Workflows</h1>
+            </div>
+            <span class="count-badge" id="workflow-count">0</span>
+          </div>
+          <label class="search-field">
+            <span aria-hidden="true">⌕</span>
+            <input id="workflow-search" type="search" placeholder="搜索名称或 Alias" autocomplete="off">
+          </label>
+          <div class="filter-tabs" role="tablist" aria-label="Workflow 筛选">
+            <button class="filter-tab is-active" type="button" data-filter="all">全部</button>
+            <button class="filter-tab" type="button" data-filter="entry">入口</button>
+          </div>
+          <div class="workflow-list" id="workflow-list" aria-live="polite"></div>
+          <div class="sidebar-footer" id="catalog-meta">Catalog 等待加载</div>
+        </aside>
+
+        <main class="canvas-panel">
+          <div class="canvas-header">
+            <div>
+              <p class="eyebrow">流程地图</p>
+              <h2 id="canvas-title">选择一个 Workflow</h2>
+              <div class="map-mode" id="map-mode" role="tablist" aria-label="流程地图范围" hidden>
+                <button class="map-mode-button is-active" type="button" data-map-mode="current">当前 Workflow</button>
+                <button class="map-mode-button" type="button" data-map-mode="expanded">含前置 Workflow</button>
+              </div>
+            </div>
+            <div class="canvas-tools" role="toolbar" aria-label="画布工具">
+              <button class="tool-button" id="zoom-out" type="button" aria-label="缩小" title="缩小">−</button>
+              <span class="zoom-readout" id="zoom-readout">100%</span>
+              <button class="tool-button" id="zoom-in" type="button" aria-label="放大" title="放大">+</button>
+              <button class="tool-button tool-button-wide" id="fit-view" type="button" aria-label="适配画布" title="适配画布">适配</button>
+              <button class="tool-button" id="grid-toggle" type="button" aria-label="切换网格" title="切换网格">⌗</button>
+            </div>
+          </div>
+          <div class="diagnostic-banner is-hidden" id="diagnostic-banner"></div>
+          <div class="graph-viewport" id="graph-viewport" tabindex="0" aria-label="Workflow 流程图。可拖拽平移，滚轮缩放。">
+            <div class="graph-empty" id="graph-empty">
+              <span class="empty-glyph">◎</span>
+              <strong>选择左侧 Workflow</strong>
+              <span>点击节点查看它关联的 Skill、Check 和源文件</span>
+            </div>
+            <svg id="graph-svg" class="graph-svg" role="img" aria-label="Workflow 流程图"></svg>
+          </div>
+          <div class="canvas-legend" aria-label="节点图例">
+            <span><i class="legend-swatch skill"></i>Skill</span>
+            <span><i class="legend-swatch switch"></i>Switch</span>
+            <span><i class="legend-swatch start"></i>开始 / 结束</span>
+          </div>
+        </main>
+
+        <aside class="inspector" id="inspector" aria-label="Workflow 详情">
+          <div class="inspector-heading">
+            <div>
+              <p class="eyebrow">检视器</p>
+              <h2 id="inspector-title">Workflow 摘要</h2>
+            </div>
+            <button class="icon-button mobile-only" id="inspector-close" type="button" aria-label="关闭详情面板" title="关闭详情面板">×</button>
+          </div>
+          <div class="inspector-body" id="inspector-body">
+            <div class="inspector-empty">详情会显示在这里</div>
+          </div>
+        </aside>
+      </div>
+      <div class="mobile-scrim" id="mobile-scrim"></div>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

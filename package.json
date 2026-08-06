@@ -29,7 +29,7 @@
     "harness-graph": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-workflow-ui.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -39,6 +39,7 @@
     "workflow:validate": "npm run build --silent && node dist/cli.js validate",
     "workflow:diagram": "npm run build --silent && node dist/cli.js diagram",
     "workflow:image": "npm run build --silent && node dist/cli.js image",
+    "workflow:ui": "npm run build --silent && node dist/cli.js ui",
     "workflow:sync": "npm run build --silent && node dist/cli.js sync",
     "workflow:activate": "npm run build --silent && node dist/cli.js activate",
     "workflow:start": "npm run build --silent && node dist/cli.js start",

@@ -9,11 +9,23 @@ import {
 } from "./catalog.js";
 import { compileWorkflow } from "./compiler.js";
 
+export type ExpandedNodeMetadata = {
+  nodeId: string;
+  workflowName: string;
+  workflowTitle: string;
+  kind: "start" | "end" | "skill" | "switch";
+  stepId?: string;
+  call?: string;
+  checks: string[];
+};
+
 export type ExpandedWorkflowGraph = {
   graph: FlatGraph;
   mermaid: string;
   workflowName: string;
   title: string;
+  workflows: WorkflowCatalogEntry[];
+  nodeMetadata: ExpandedNodeMetadata[];
 };
 
 type WorkflowAnchors = {
@@ -55,6 +67,36 @@ function resolveWorkflowOrder(
 
   visit(target);
   return ordered;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function getChecks(task: unknown): string[] {
+  const metadata = asRecord(asRecord(task)?.metadata);
+  const harness = asRecord(metadata?.harness);
+  return Array.isArray(harness?.checks)
+    ? harness.checks.filter((check): check is string => typeof check === "string")
+    : [];
+}
+
+function stepIdFromNodeId(nodeId: string): string | undefined {
+  const match = /^\/do\/\d+\/(.+)$/u.exec(nodeId);
+  return match?.[1];
+}
+
+function taskForNode(workflowDocument: unknown, nodeId: string): unknown {
+  const match = /^\/do\/(\d+)\/(.+)$/u.exec(nodeId);
+  if (match === null) return undefined;
+  const taskName = match[2];
+  if (taskName === undefined) return undefined;
+  const tasks = asRecord(workflowDocument)?.do;
+  if (!Array.isArray(tasks)) return undefined;
+  const item = (tasks as unknown[])[Number(match[1])];
+  return asRecord(item)?.[taskName];
 }
 
 function displayNodeLabel(workflow: WorkflowCatalogEntry, node: FlatNode): string | undefined {
@@ -110,6 +152,7 @@ export async function expandWorkflowPrerequisites(options: {
   const nodes: FlatNode[] = [];
   const edges: FlatEdge[] = [];
   const anchors = new Map<string, WorkflowAnchors>();
+  const nodeMetadata: ExpandedNodeMetadata[] = [];
   let nextNode = 0;
   let nextEdge = 0;
 
@@ -135,6 +178,24 @@ export async function expandWorkflowPrerequisites(options: {
           ? { id: nodeId, type: node.type }
           : { id: nodeId, type: node.type, label };
       nodes.push(expandedNode);
+      const stepId = stepIdFromNodeId(node.id);
+      const task = taskForNode(compiled.workflow, node.id);
+      const kind = node.type === GraphNodeType.Start
+        ? "start"
+        : node.type === GraphNodeType.End
+          ? "end"
+          : node.type === GraphNodeType.Switch
+            ? "switch"
+            : "skill";
+      nodeMetadata.push({
+        nodeId,
+        workflowName: workflow.name,
+        workflowTitle: workflow.title,
+        kind,
+        ...(stepId === undefined ? {} : { stepId }),
+        ...(typeof asRecord(task)?.call === "string" ? { call: asRecord(task)?.call as string } : {}),
+        checks: getChecks(task),
+      });
       if (node.type === GraphNodeType.Start) {
         startNodeId = nodeId;
       }
@@ -192,5 +253,7 @@ export async function expandWorkflowPrerequisites(options: {
     mermaid: toMermaid(graph),
     workflowName: target.name,
     title: `${target.title}（含前置 Workflow）`,
+    workflows,
+    nodeMetadata,
   };
 }

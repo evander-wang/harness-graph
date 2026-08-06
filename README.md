@@ -267,6 +267,22 @@ Workflow 自动读取 `package.json#packageManager` 和项目根目录 Lockfile�
 
 Workflow Input 使用 `projectRoot` 指定目标项目目录，默认 `.`。Harness 的 Workflow、Skill、Check 和 Run 状态仍从 Harness 根目录加载；目标可以是另一个本地空目录或已有项目，但不能是远程仓库或远程执行目标。
 
+## Workflow 管理页面
+
+仓库提供只读的本地管理页面，用于浏览 Workflow 图、Step、Transition 及其关联的 Skill、Check 和 Model 文件：
+
+```bash
+npm run workflow:ui
+```
+
+默认访问 `http://127.0.0.1:4173`。需要指定端口时直接传入端口号：
+
+```bash
+npm run workflow:ui -- 4300
+```
+
+页面数据在请求时通过现有 Compiler 从 `workflow.yaml` 生成，不维护第二份流程定义。画布支持拖拽、滚轮缩放和节点选择；入口 Workflow 如果声明了前置 Workflow，会默认展示“含前置 Workflow”的完整链路，也可以切换为只看当前 Workflow；点击右侧文件列表可查看对应源文件内容。
+
 ## 本地开发
 
 要求 Node.js 22 及以上版本。
