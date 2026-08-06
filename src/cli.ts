@@ -53,7 +53,7 @@ const REQUIRED_PATHS = [
   "harness/models",
   "harness/checks",
   "harness/workflows",
-  "skills",
+  "harness/skills",
 ];
 
 async function exists(path: string): Promise<boolean> {

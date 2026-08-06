@@ -28,7 +28,7 @@
 - 输入输出结构：`harness/models/**/*.schema.json`
 - Workflow：`harness/workflows/**/workflow.yaml`
 - Check：`harness/checks/**/CHECK.md`
-- Skill：`skills/**/SKILL.md`
+- Skill：`harness/skills/**/SKILL.md`
 
 Mermaid 和其他生成内容只用于展示，禁止手工维护为第二份流程定义。
 
@@ -41,7 +41,7 @@ Mermaid 和其他生成内容只用于展示，禁止手工维护为第二份流
 - `document.dsl` 固定使用当前 SDK 支持的 `1.0.3`。
 - `document.version` 使用语义化版本。
 - 首版只允许自定义 `call` 和 `switch`。
-- 自定义 `call` 必须存在对应的 `skills/<call>/SKILL.md`。
+- 自定义 `call` 必须存在对应的 `harness/skills/<call>/SKILL.md`。
 - Skill Step 的业务 `input`、`output` 和 Check 都可以省略。
 - 固定流转且没有 Check 的 Skill Step 正常完成后视为 `passed`，并记录执行证据。
 - Skill Step 的下一节点是 `switch` 时必须绑定至少一个 Check。
@@ -58,7 +58,7 @@ Mermaid 和其他生成内容只用于展示，禁止手工维护为第二份流
 
 ## 本地执行
 
-- `skills/workflow-router/SKILL.md` 是 Agent 进入 Workflow 的唯一入口。
+- `harness/skills/workflow-router/SKILL.md` 是 Agent 进入 Workflow 的唯一入口。
 - Router 只读取 Workflow Catalog 的 `entryWorkflows` 路由入口，并自动调用 `workflow:start`、`workflow:continue` 和必要时的 `workflow:cancel`。
 - Agent 禁止自行解析 YAML 决定 Transition，后续 Step 只能使用 Runtime 返回结果。
 - 一个 Harness Worktree 同时只允许一个 `running` Run；Run 固化目标项目目录。

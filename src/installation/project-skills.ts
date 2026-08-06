@@ -98,7 +98,7 @@ export async function prepareLegacyProjectSkills(
   sourceRoot: string,
 ): Promise<ProjectSkillAdapterPlan[]> {
   const displayPath = "harness-graph/skills/harness-graph/SKILL.md";
-  const canonicalSource = await readFile(join(sourceRoot, "skills/harness-graph/SKILL.md"), "utf8");
+  const canonicalSource = await readFile(join(sourceRoot, "harness/skills/harness-graph/SKILL.md"), "utf8");
   const canonical = await prepareProjectSkillFile(
     join(projectRoot, displayPath),
     displayPath,

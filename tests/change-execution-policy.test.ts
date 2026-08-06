@@ -13,7 +13,7 @@ async function readProjectFile(path: string): Promise<string> {
 
 describe("change execution policy assets", () => {
   test("非平凡任务在展示后落盘计划并声明接口文档影响", async () => {
-    const policy = await readProjectFile("skills/load-change-execution-policy/SKILL.md");
+    const policy = await readProjectFile("harness/skills/load-change-execution-policy/SKILL.md");
 
     expect(policy).toContain("docs/plans/");
     expect(policy).toContain("接口与文档影响");
@@ -25,8 +25,8 @@ describe("change execution policy assets", () => {
 
   test("分析 Skill 保存非平凡计划并向后续 Step 提交路径证据", async () => {
     const analysisSkills = await Promise.all([
-      readProjectFile("skills/analyze-node-change/SKILL.md"),
-      readProjectFile("skills/analyze-node-project/SKILL.md"),
+      readProjectFile("harness/skills/analyze-node-change/SKILL.md"),
+      readProjectFile("harness/skills/analyze-node-project/SKILL.md"),
     ]);
 
     for (const skill of analysisSkills) {
@@ -40,8 +40,8 @@ describe("change execution policy assets", () => {
 
   test("实现 Skill 读取已通过计划并同步接口事实源", async () => {
     const implementationSkills = await Promise.all([
-      readProjectFile("skills/implement-node-change/SKILL.md"),
-      readProjectFile("skills/configure-node-project/SKILL.md"),
+      readProjectFile("harness/skills/implement-node-change/SKILL.md"),
+      readProjectFile("harness/skills/configure-node-project/SKILL.md"),
     ]);
 
     for (const skill of implementationSkills) {
@@ -70,7 +70,7 @@ describe("change execution policy assets", () => {
   });
 
   test("共享策略集中声明公开接口的默认事实源和说明位置", async () => {
-    const policy = await readProjectFile("skills/load-change-execution-policy/SKILL.md");
+    const policy = await readProjectFile("harness/skills/load-change-execution-policy/SKILL.md");
 
     expect(policy).toContain("docs/contracts/http/openapi.yaml");
     expect(policy).toContain("docs/contracts/events/asyncapi.yaml");

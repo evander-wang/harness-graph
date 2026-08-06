@@ -85,7 +85,7 @@ NodeProjectProfile
 
 新项目默认使用 Node.js 24、npm、ESM、strict TypeScript、`src/`、`test/` 和标准 scripts。已有项目保留现有模块系统、目录、包管理器和测试框架，只补缺失能力或修复有证据的冲突。
 
-新项目的工具版本、目录、scripts、TypeScript、ESLint 和 CI 默认值固定在 `skills/configure-node-project/BASELINE.md`。Workflow Version 不变时不应随 Agent 或执行日期漂移；偏离基线必须来自用户约束或项目类型，并记录原因。
+新项目的工具版本、目录、scripts、TypeScript、ESLint 和 CI 默认值固定在 `harness/skills/configure-node-project/BASELINE.md`。Workflow Version 不变时不应随 Agent 或执行日期漂移；偏离基线必须来自用户约束或项目类型，并记录原因。
 
 ## 包管理器识别
 

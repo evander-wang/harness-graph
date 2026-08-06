@@ -194,6 +194,19 @@ describe("installHarnessProject", () => {
     expect(manifest.layoutVersion).toBe(2);
   });
 
+  test("旧布局缺少规范入口 Skill 时从新的源码路径补回", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-graph-missing-canonical-skill-"));
+    await installForTest(workspaceRoot);
+    await downgradeToLegacyBrandInstallation(workspaceRoot);
+    await rm(join(workspaceRoot, "harness-next/skills/harness-next"), { recursive: true });
+
+    await installForTest(workspaceRoot);
+
+    await expect(
+      access(join(workspaceRoot, "harness-graph/skills/harness-graph/SKILL.md")),
+    ).resolves.toBeUndefined();
+  });
+
   test("旧布局存在运行中 Run 时拒绝迁移并保留原安装", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-graph-running-migration-"));
     await installForTest(workspaceRoot);

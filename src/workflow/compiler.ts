@@ -168,9 +168,10 @@ async function validateSkillBinding(
   const diagnostics: Diagnostic[] = [];
   const layout = resolveHarnessLayout(rootDir);
   if (!(await pathExists(join(layout.skillsRoot, call, "SKILL.md")))) {
+    const skillRoot = layout.installed ? "skills" : "harness/skills";
     diagnostics.push({
       code: "skill.not-found",
-      message: `Step '${stepId}' 引用的 Skill 不存在：skills/${call}/SKILL.md`,
+      message: `Step '${stepId}' 引用的 Skill 不存在：${skillRoot}/${call}/SKILL.md`,
     });
   }
   const checks = getChecks(task);

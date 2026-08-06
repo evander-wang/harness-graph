@@ -55,7 +55,7 @@ call: load-node-typescript-standards
 它固定解析到：
 
 ```text
-skills/load-node-typescript-standards/SKILL.md
+harness/skills/load-node-typescript-standards/SKILL.md
 ```
 
 这是引擎仓库的发布源路径；安装后物理路径是 `harness-graph/skills/load-node-typescript-standards/SKILL.md`。

@@ -12,7 +12,7 @@ async function createProject(): Promise<string> {
   await mkdir(join(rootDir, "harness/checks/done"), { recursive: true });
   await mkdir(join(rootDir, "harness/models"), { recursive: true });
   await mkdir(join(rootDir, "harness/schemas"), { recursive: true });
-  await mkdir(join(rootDir, "skills/run-example"), { recursive: true });
+  await mkdir(join(rootDir, "harness/skills/run-example"), { recursive: true });
   await writeFile(join(rootDir, "AGENTS.md"), "# 约束\n");
   await writeFile(join(rootDir, "README.md"), "# 项目\n");
   await writeFile(join(rootDir, "keywords.md"), "# 关键词\n");
@@ -21,7 +21,7 @@ async function createProject(): Promise<string> {
   await writeFile(join(rootDir, "package-lock.json"), "{}\n");
   await writeFile(join(rootDir, "tsconfig.json"), "{}\n");
   await writeFile(join(rootDir, "harness/checks/done/CHECK.md"), "# 检查\n");
-  await writeFile(join(rootDir, "skills/run-example/SKILL.md"), "# 执行\n");
+  await writeFile(join(rootDir, "harness/skills/run-example/SKILL.md"), "# 执行\n");
   await writeFile(
     join(rootDir, "harness/workflows/example/workflow.yaml"),
     `document:
@@ -104,8 +104,8 @@ limits:
 async function addWorkflowWithPrerequisite(rootDir: string): Promise<void> {
   await mkdir(join(rootDir, "harness/workflows/standards"), { recursive: true });
   await mkdir(join(rootDir, "harness/workflows/development"), { recursive: true });
-  await mkdir(join(rootDir, "skills/load-standards"), { recursive: true });
-  await writeFile(join(rootDir, "skills/load-standards/SKILL.md"), "# Load standards\n");
+  await mkdir(join(rootDir, "harness/skills/load-standards"), { recursive: true });
+  await writeFile(join(rootDir, "harness/skills/load-standards/SKILL.md"), "# Load standards\n");
   await writeFile(
     join(rootDir, "harness/workflows/standards/workflow.yaml"),
     `document:

@@ -64,7 +64,7 @@ export async function stageLegacyPublishedAssets(
     }
     await rename(legacyCanonicalSkill, canonicalSkill);
   } else if (!(await exists(canonicalSkill))) {
-    await cp(join(sourceRoot, "skills", HARNESS_ROOT_DIRECTORY), canonicalSkill, { recursive: true });
+    await cp(join(sourceRoot, "harness/skills", HARNESS_ROOT_DIRECTORY), canonicalSkill, { recursive: true });
   }
   await rewriteLegacyPublishedText(stagedHarnessRoot);
 }

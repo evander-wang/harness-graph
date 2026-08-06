@@ -119,7 +119,7 @@ flowchart TD
 | --- | --- |
 | `harness/workflows/` | Workflow、Step 和 Transition |
 | `harness/models/` | 输入输出的 JSON Schema |
-| `skills/` | Agent 完成 Step 的方法 |
+| `harness/skills/` | Agent 完成 Step 的方法 |
 | `harness/checks/` | Step 的验收规则 |
 
 这些是 Harness Graph 引擎仓库中的发布源路径；安装到业务项目后分别位于 `harness-graph/workflows/`、`harness-graph/models/`、`harness-graph/checks/` 和 `harness-graph/skills/`。项目根目录的 `.agents/skills/harness-graph/` 与 `.claude/skills/harness-graph/` 只是宿主 Adapter，不是第二份 Skill 事实源。
@@ -175,7 +175,7 @@ data: {}
 
 首版只接受两类 Task：
 
-- 自定义 `call`：映射到本地 `skills/<call>/SKILL.md`；
+- 自定义 `call`：映射到本地 `harness/skills/<call>/SKILL.md`；
 - `switch`：只负责流程分支。
 
 `schedule`、HTTP、gRPC、MCP、A2A、事件任务和其他远程执行能力会被拒绝。`for`、`fork`、`try` 等标准结构等本地执行语义明确后再开放。

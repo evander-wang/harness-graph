@@ -369,7 +369,7 @@ target-directory = process.cwd()
 | `harness/checks/` | `harness-graph/checks/` |
 | `harness/workflow-activation.yaml` | `harness-graph/workflow-activation.yaml` |
 | `harness/generated/workflow-catalog.json` | `harness-graph/generated/workflow-catalog.json` |
-| `skills/` | `harness-graph/skills/` |
+| `harness/skills/` | `harness-graph/skills/` |
 
 项目根目录中的两个宿主 Adapter 由安装器根据固定薄入口生成。它们只引用上表复制出的 `harness-graph/skills/harness-graph/SKILL.md`，不维护第二份 Workflow、Check 或 Step Skill 规则。
 
@@ -510,7 +510,7 @@ CLI 不能替代 Agent 执行 Skill。`route` 的可执行部分负责 preflight
 harness/workflows/
 harness/models/
 harness/checks/
-skills/
+harness/skills/
 .harness/
 ```
 
@@ -857,7 +857,7 @@ src/workflow/compiler.ts
 src/workflow/catalog.ts
 src/workflow/runtime.ts
 src/workflow/checks.ts
-skills/workflow-router/SKILL.md
+harness/skills/workflow-router/SKILL.md
 README.md
 docs/design.md
 CONTRIBUTING.md

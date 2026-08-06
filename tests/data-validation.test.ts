@@ -90,8 +90,8 @@ describe("validateWorkflowData", () => {
     const workflowPath = join(rootDir, "harness/workflows/example/workflow.yaml");
     await mkdir(join(rootDir, "harness/workflows/example"), { recursive: true });
     await mkdir(join(rootDir, "harness/models"), { recursive: true });
-    await mkdir(join(rootDir, "skills/run-example"), { recursive: true });
-    await writeFile(join(rootDir, "skills/run-example/SKILL.md"), "# 执行示例\n");
+    await mkdir(join(rootDir, "harness/skills/run-example"), { recursive: true });
+    await writeFile(join(rootDir, "harness/skills/run-example/SKILL.md"), "# 执行示例\n");
     await writeFile(
       join(rootDir, "harness/models/profile.schema.json"),
       JSON.stringify({
@@ -162,9 +162,9 @@ do:
     await mkdir(join(rootDir, "harness/workflows/example"), { recursive: true });
     await mkdir(join(rootDir, "harness/models"), { recursive: true });
     await mkdir(join(rootDir, "harness/checks/done"), { recursive: true });
-    await mkdir(join(rootDir, "skills/run-example"), { recursive: true });
+    await mkdir(join(rootDir, "harness/skills/run-example"), { recursive: true });
     await writeFile(join(rootDir, "harness/checks/done/CHECK.md"), "# 完成检查\n");
-    await writeFile(join(rootDir, "skills/run-example/SKILL.md"), "# 执行示例\n");
+    await writeFile(join(rootDir, "harness/skills/run-example/SKILL.md"), "# 执行示例\n");
     await writeFile(
       join(rootDir, "harness/models/request.schema.json"),
       JSON.stringify({

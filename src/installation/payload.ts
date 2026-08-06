@@ -7,7 +7,7 @@ const MAINTAINED_ENTRIES = [
   ["harness/workflows", "workflows"],
   ["harness/models", "models"],
   ["harness/checks", "checks"],
-  ["skills", "skills"],
+  ["harness/skills", "skills"],
   ["harness/workflow-activation.yaml", "workflow-activation.yaml"],
   ["harness/generated/workflow-catalog.json", "generated/workflow-catalog.json"],
 ] as const;

@@ -64,8 +64,8 @@ describe("npm package release", () => {
       "dist/cli.js",
       "harness/generated/workflow-catalog.json",
       "harness/workflow-activation.yaml",
-      "skills/harness-graph/SKILL.md",
-      "skills/workflow-router/SKILL.md",
+      "harness/skills/harness-graph/SKILL.md",
+      "harness/skills/workflow-router/SKILL.md",
     ]));
     expect(packedFiles).not.toContain("package-lock.json");
     expect(packedFiles).not.toEqual(expect.arrayContaining([

@@ -12,9 +12,9 @@ async function createValidProject(): Promise<{ rootDir: string; workflowPath: st
 
   await mkdir(join(rootDir, "harness/workflows/example-workflow"), { recursive: true });
   await mkdir(join(rootDir, "harness/checks/example-check"), { recursive: true });
-  await mkdir(join(rootDir, "skills/run-example"), { recursive: true });
+  await mkdir(join(rootDir, "harness/skills/run-example"), { recursive: true });
   await writeFile(join(rootDir, "harness/checks/example-check/CHECK.md"), "# 验收\n");
-  await writeFile(join(rootDir, "skills/run-example/SKILL.md"), "# 执行示例\n");
+  await writeFile(join(rootDir, "harness/skills/run-example/SKILL.md"), "# 执行示例\n");
   await writeFile(
     workflowPath,
     `document:
@@ -76,7 +76,7 @@ describe("compileWorkflow", () => {
 
   test("报告不存在的 Skill 和 Check", async () => {
     const project = await createValidProject();
-    await unlink(join(project.rootDir, "skills/run-example/SKILL.md"));
+    await unlink(join(project.rootDir, "harness/skills/run-example/SKILL.md"));
     await unlink(join(project.rootDir, "harness/checks/example-check/CHECK.md"));
 
     const result = await compileWorkflow(project);
@@ -86,6 +86,21 @@ describe("compileWorkflow", () => {
       "skill.not-found",
       "check.not-found",
     ]);
+  });
+
+  test("开发态不会把根目录 skills 作为 Skill 事实源", async () => {
+    const project = await createValidProject();
+    await unlink(join(project.rootDir, "harness/skills/run-example/SKILL.md"));
+    await mkdir(join(project.rootDir, "skills/run-example"), { recursive: true });
+    await writeFile(join(project.rootDir, "skills/run-example/SKILL.md"), "# 旧路径\n");
+
+    const result = await compileWorkflow(project);
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toContainEqual({
+      code: "skill.not-found",
+      message: "Step 'run-example' 引用的 Skill 不存在：harness/skills/run-example/SKILL.md",
+    });
   });
 
   test("报告从起点无法到达的 Step", async () => {

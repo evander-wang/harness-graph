@@ -3,7 +3,7 @@
 每个 Skill 使用独立目录：
 
 ```text
-skills/<skill-id>/SKILL.md
+harness/skills/<skill-id>/SKILL.md
 ```
 
 Workflow 中的自定义 `call` 值就是 Skill ID。Agent 执行当前 Step 时只加载对应 `SKILL.md`、可选的 Check 和必要输入。
@@ -14,9 +14,9 @@ Skill 不得自行决定或执行后续 Step。
 
 ## Workflow 入口
 
-`skills/harness-graph/SKILL.md` 是面向用户和宿主的规范入口。安装器生成的 `.agents/skills/harness-graph/SKILL.md` 与 `.claude/skills/harness-graph/SKILL.md` 只负责加载它，不复制路由规则。
+`harness/skills/harness-graph/SKILL.md` 是面向用户和宿主的规范入口。安装器生成的 `.agents/skills/harness-graph/SKILL.md` 与 `.claude/skills/harness-graph/SKILL.md` 只负责加载它，不复制路由规则。
 
-`skills/workflow-router/SKILL.md` 是唯一 Runtime Workflow 入口。规范入口把完整用户请求和显式 Workflow 名称交给它；Router 只读取生成的 Catalog，选择一个入口 Workflow，并自动调用项目本地 Runtime。
+`harness/skills/workflow-router/SKILL.md` 是唯一 Runtime Workflow 入口。规范入口把完整用户请求和显式 Workflow 名称交给它；Router 只读取生成的 Catalog，选择一个入口 Workflow，并自动调用项目本地 Runtime。
 
 Workflow 完成后，Router 可询问用户是否通过项目本地 `report <run-id> --format markdown` 输出执行摘要；执行 trace 始终由 Runtime 保存到 Run 状态。
 

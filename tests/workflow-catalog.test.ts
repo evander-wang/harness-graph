@@ -26,8 +26,8 @@ async function writeWorkflow(
 ): Promise<void> {
   const workflowDirectory = join(rootDir, "harness/workflows", directory);
   await mkdir(workflowDirectory, { recursive: true });
-  await mkdir(join(rootDir, "skills/run-example"), { recursive: true });
-  await writeFile(join(rootDir, "skills/run-example/SKILL.md"), "# 执行\n");
+  await mkdir(join(rootDir, "harness/skills/run-example"), { recursive: true });
+  await writeFile(join(rootDir, "harness/skills/run-example/SKILL.md"), "# 执行\n");
   await writeFile(
     join(workflowDirectory, "workflow.yaml"),
     `document:
@@ -157,7 +157,7 @@ describe("syncWorkflowCatalog", () => {
       "change-execution-policy",
     ]);
     const policySkill = await readFile(
-      join(rootDir, "skills/load-change-execution-policy/SKILL.md"),
+      join(rootDir, "harness/skills/load-change-execution-policy/SKILL.md"),
       "utf8",
     );
     expect(policySkill).toContain("第一次写入前");
@@ -170,7 +170,7 @@ describe("syncWorkflowCatalog", () => {
     );
     expect(standardGuide).toContain("maxFunctionLines: 80");
     const standardNode = await readFile(
-      join(rootDir, "skills/load-node-typescript-standards/SKILL.md"),
+      join(rootDir, "harness/skills/load-node-typescript-standards/SKILL.md"),
       "utf8",
     );
     expect(standardNode).toContain("STANDARDS.md");
@@ -217,7 +217,7 @@ describe("syncWorkflowCatalog", () => {
   test("标准 Workflow 的规范正文可被质量门禁定位", async () => {
     const rootDir = resolve(import.meta.dirname, "..");
     const standards = await readFile(
-      join(rootDir, "skills/load-node-typescript-standards/SKILL.md"),
+      join(rootDir, "harness/skills/load-node-typescript-standards/SKILL.md"),
       "utf8",
     );
     expect(standards).toContain("harness/workflows/node-typescript-standards/STANDARDS.md");

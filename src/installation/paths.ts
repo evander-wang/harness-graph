@@ -57,7 +57,7 @@ function developmentPaths(rootDir: string): HarnessPaths {
     workflowsRoot: join(harnessAssetsRoot, "workflows"),
     modelsRoot: join(harnessAssetsRoot, "models"),
     checksRoot: join(harnessAssetsRoot, "checks"),
-    skillsRoot: join(rootDir, "skills"),
+    skillsRoot: join(harnessAssetsRoot, "skills"),
     generatedRoot: join(harnessAssetsRoot, "generated"),
     catalogPath: join(harnessAssetsRoot, "generated/workflow-catalog.json"),
     activationPath: join(harnessAssetsRoot, "workflow-activation.yaml"),

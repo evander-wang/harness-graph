@@ -23,8 +23,8 @@ async function createRuntimeProject(options?: { failingQualityGate?: boolean }):
   await mkdir(join(rootDir, "harness/models"), { recursive: true });
 
   for (const skillId of ["inspect-change", "implement-change", "verify-change", "deliver-change"]) {
-    await mkdir(join(rootDir, "skills", skillId), { recursive: true });
-    await writeFile(join(rootDir, "skills", skillId, "SKILL.md"), `# ${skillId}\n`);
+    await mkdir(join(rootDir, "harness/skills", skillId), { recursive: true });
+    await writeFile(join(rootDir, "harness/skills", skillId, "SKILL.md"), `# ${skillId}\n`);
   }
   for (const checkId of ["plan-ready", "quality-gate"]) {
     await mkdir(join(rootDir, "harness/checks", checkId), { recursive: true });
@@ -228,7 +228,7 @@ describe("Local Workflow Runtime", () => {
       step: {
         id: "inspect-change",
         attempt: 1,
-        skillPath: "skills/inspect-change/SKILL.md",
+        skillPath: "harness/skills/inspect-change/SKILL.md",
         checkPaths: ["harness/checks/plan-ready/CHECK.md"],
       },
     });
