@@ -9,11 +9,11 @@
     {
       "name": "change-execution-policy",
       "namespace": "harness-graph",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "title": "本地变更执行协议",
-      "summary": "在修改类 Workflow 前加载跨语言的计划、读取、询问、范围和验证约束。",
+      "summary": "在修改类 Workflow 前加载跨语言的计划落盘、接口文档、读取、询问、范围和验证约束。",
       "path": "harness/workflows/change-execution-policy/workflow.yaml",
-      "sourceHash": "sha256:7eb0a5f83b986671b35cd38e1dcd91d6b184f29ee856f4b6ba3215e712fad6e8",
+      "sourceHash": "sha256:db77fe9b0bcba85761fe310a3650bba0ade618f89d95596c5a56eb3ab414b9d8",
       "routing": {
         "aliases": [],
         "when": [],

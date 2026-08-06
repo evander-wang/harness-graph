@@ -217,6 +217,28 @@ Router 选中 `harness-graph/workflows/node-typescript-development/workflow.yaml
 | Review | 基于需求、实际 Diff、测试和命令证据检查正确性、回归、兼容性与范围 | 发现可修复问题时返回实现阶段 |
 | 交付 | 汇总变更、验证证据和剩余风险 | 输出不满足 Schema 时不会完成 Run |
 
+### 计划和接口文档放在哪里
+
+`change-execution-policy` 在所有修改类入口前统一生效。单文件、低风险且不改变公开 Interface、Schema、迁移或发布行为的简单任务可以只在对话中展示计划；多文件、跨 Module、公开 Interface、迁移、发布部署、新项目初始化或需要跨重启恢复的非平凡任务会先向用户展示计划，再保存到目标业务项目已有的计划目录。业务项目没有既有约定时使用：
+
+```text
+docs/plans/YYYY-MM-DD-<slug>.md
+```
+
+分析 Step 通过普通 `evidence` 提交 `planPath=<相对 Workspace Root 的路径>`。后续实现和 Review Step 从这个路径读取计划；计划正文不会复制进 Runtime 状态，也没有新增 Plan 顶层模型。计划是展示后允许的第一次写入，在计划 Check 通过前不会修改生产代码或配置。
+
+公开 Interface 变化时优先遵循业务项目已有约定。没有约定时，默认位置如下：
+
+| Interface | 机器事实源或使用说明 |
+| --- | --- |
+| HTTP | `docs/contracts/http/openapi.yaml` |
+| 事件 | `docs/contracts/events/asyncapi.yaml` |
+| gRPC | `proto/` |
+| CLI | 代码和参数 Schema 为事实源，使用说明写入 `docs/reference/cli.md` |
+| Harness Workflow | `harness-graph/workflows/<name>/workflow.yaml` 与 `harness-graph/models/*.schema.json`；说明写入同一 Workflow 目录的 `README.md` |
+
+实现顺序是先更新可校验的机器事实源，再更新面向使用者的说明、示例和兼容或迁移信息。Markdown 不复制维护完整字段结构。
+
 每个 Step 最多尝试 3 次。执行过程中，Agent 每次只加载当前 Step 的 Skill、Check 和必要输入，Transition 完全由 Runtime 返回，用户不需要手工执行 `workflow:start` 或 `workflow:continue`。
 
 Workflow 完成后输出以下结构：

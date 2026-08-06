@@ -52,6 +52,14 @@ Runtime 发布包由 `src/installation/runtime-package.ts` 投影：只保留运
 
 Open Workflow 的标准 Schema 由 `@openworkflowspec/sdk` 提供，禁止复制后手工维护。
 
+## 共享计划和接口策略
+
+修改计划落盘、修改前读取、范围控制、询问或完成验证等跨语言行为时，只修改 `load-change-execution-policy` 及其通用 Check。语言 Standards 和领域 Skill 只补充专有事实源、工具和验收条件；新增 Rust、Go、PHP 或 Python Workflow 时通过 prerequisite 组合共享策略，不复制规则。
+
+非平凡变更的计划保存在目标业务项目的既有计划位置；没有约定时使用 `docs/plans/YYYY-MM-DD-<slug>.md`。计划必须包含“接口与文档影响”，分析结果通过现有 evidence 的 `planPath=` 交给后续 Step。不要给 Workflow 或 Runtime 增加 Plan 顶层类型，也不要把计划正文写进 Run 状态。
+
+新增或变更公开 Interface 时，先更新机器事实源，再更新面向使用者的说明，并在 Review 中对照实际 Diff、兼容或迁移影响与测试。默认位置由共享策略维护；领域 Skill 不重复路径表。Harness 自身的 Workflow Interface 仍以 `workflow.yaml` 和 `harness/models/` 为事实源，同目录 `README.md` 只维护用法与示例。
+
 ## 开发要求
 
 - 生产行为修改前先写失败测试，并确认失败原因正确。

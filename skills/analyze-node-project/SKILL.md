@@ -5,7 +5,7 @@ description: 分析目标目录的 Node.js TypeScript 工程现状，生成可�
 
 # 分析 Node.js TypeScript 项目
 
-只分析 Workflow Input 的 `projectRoot`，不修改文件。路径不存在或为空时按新项目处理。完整读取目标目录适用的 `AGENTS.md`、`package.json`、根 Lockfile、TypeScript、ESLint、测试、构建、环境配置、README、CI 和可选 Docker 配置。
+只分析 Workflow Input 的 `projectRoot`。除已加载的通用执行协议允许的计划文件外，不得修改生产代码或配置。路径不存在或为空时按新项目处理。完整读取目标目录适用的 `AGENTS.md`、`package.json`、根 Lockfile、TypeScript、ESLint、测试、构建、环境配置、README、CI 和可选 Docker 配置。
 
 ## 判断项目状态
 
@@ -18,6 +18,8 @@ description: 分析目标目录的 Node.js TypeScript 工程现状，生成可�
 ## 生成目标 Profile
 
 输出完整 `NodeProjectProfile`、计划修改文件、保留决定、风险和验证方式。
+
+按照已加载的通用执行协议将新项目初始化和其他非平凡任务的计划先向用户展示，再写入协议选定的计划文件；在 evidence 中记录 `planPath=<相对 Workspace Root 的路径>`。计划必须声明接口与文档影响；没有影响时明确写“无”。
 
 新项目必须从用户请求中确定 `service`、`cli` 或 `library`；无法确定时返回 `blocked`。默认使用 Node.js 24、npm、ESM、strict TypeScript、`src/`、`test/`、ESLint、Vitest 和标准 scripts。
 

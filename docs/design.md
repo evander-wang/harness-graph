@@ -53,6 +53,10 @@ workflow.yaml ──► compileWorkflow() ──► 标准校验、静态图、M
 
 通用计划和 Review Check 可以与领域 Check 组合在同一 Step。通用 Check 检查计划、范围和证据，领域 Check 只检查 Profile、工具链或语言规则；二者仍返回同一套标准状态，不引入新的结果模型。
 
+计划是目标 Workspace 中的开发文档，不是第六个流程概念，也不是 Runtime 的结构化状态。非平凡任务的分析 Step 在展示计划后将其保存到业务项目既有位置；没有约定时使用 `docs/plans/YYYY-MM-DD-<slug>.md`。Step Result 只在现有 `evidence` 中记录 `planPath=<相对 Workspace Root 的路径>`，后续 Skill 和 Check 按路径读取，因此计划可以由 Git 审阅并跨宿主重启恢复，同时避免在状态文件复制正文。
+
+“接口与文档影响”属于计划和 Review 的横切策略。机器可校验定义是 Interface 的事实源，面向使用者的 Markdown 只维护用法、示例、兼容和迁移说明。业务项目现有约定优先；共享策略只提供无约定时的 HTTP、事件、gRPC、CLI 和 Harness Workflow 默认位置。语言或领域 Skill 负责补充该生态的具体事实源，不复制通用的计划、范围和 Review 规则。
+
 Mermaid 和 SVG Renderer 使用同一个 `FlatGraph`。SVG 使用 Dagre 在本地完成布局，不依赖浏览器或远程渲染服务。
 
 `src/node-project/` 是 Node.js 工程检查的深 Module。它通过 `detectPackageManager(rootDir)` 和 `checkNodeProject()` 两个小 Interface 隐藏根 Lockfile 识别、Node.js 版本一致性、工程基线检查和 npm、Yarn、pnpm 命令差异。Workflow 和 Check 不复制这些规则。
