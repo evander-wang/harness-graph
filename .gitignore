@@ -13,3 +13,4 @@ coverage/
 harness/generated/*
 !harness/generated/workflow-catalog.json
 .harness/
+example_projects/*
