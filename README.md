@@ -1,449 +1,113 @@
 # Harness Graph
 
-Harness Graph 使用一份标准 `workflow.yaml` 描述本地 Agent 应按什么顺序加载 Skill、执行任务，并在需要判断时接受 Check。项目采用 [Open Workflow Specification](https://github.com/open-workflow-specification/specification) 作为唯一 Workflow 格式。
+Harness Graph 为本地编码 Agent 提供可执行的 Workflow。它会根据任务加载对应的开发规范、执行步骤和检查规则，并在需要时暂停等待你的决定。
 
-## 快速开始
+## 安装
 
-### 1. 使用 npx 安装
-
-需要 Node.js 22 或更高版本。在业务项目根目录执行固定版本的安装命令：
+要求 Node.js 22 或更高版本。在业务项目根目录执行：
 
 ```bash
-cd /path/to/your-project
 npx --yes @jichaowang/harness-graph@0.1.0 install
 ```
 
-也可以显式指定目标目录：
+安装完成后，项目中会出现 `harness-graph/`，其中保存 Workflow、Skill、Check 和本地 Runtime。安装器也会配置 Codex、Claude Code 等 Agent 的项目入口。
+
+先检查安装：
 
 ```bash
-npx --yes @jichaowang/harness-graph@0.1.0 install /path/to/your-project
+./harness-graph/bin/harness-graph preflight
 ```
 
-固定版本可以避免 `latest` 更新导致同一条自动化命令产生不同安装结果。贡献者从源码验证未发布版本时执行：
+升级到新版本时，重新执行对应版本的 `npx` 安装命令即可：
 
 ```bash
-cd /path/to/harness-graph
+npx --yes @jichaowang/harness-graph@<version> install
+```
+
+## 使用 Agent
+
+在业务项目根目录先执行：
+
+```bash
+./harness-graph/bin/harness-graph route
+```
+
+然后直接向 Agent 描述任务即可。例如：
+
+```text
+修复配置加载失败，并补充回归测试。
+```
+
+需要指定流程时，可以明确写出 Workflow：
+
+```text
+使用 node-typescript-development Workflow 修复配置加载失败，并补充回归测试。
+```
+
+当前常用 Workflow：
+
+- `node-typescript-development`：新增功能、修复缺陷、重构和代码变更。
+- `node-typescript-project-configuration`：初始化或规范化 Node.js TypeScript 项目。
+
+Agent 会自动执行前置规范、当前 Step 和 Check。任务遇到需要你决定的问题时会暂停询问，不会擅自继续。
+
+## 打开 Workflow UI
+
+### 已安装到业务项目
+
+在业务项目根目录执行：
+
+```bash
+./harness-graph/bin/harness-graph ui
+```
+
+默认访问 [http://127.0.0.1:4173](http://127.0.0.1:4173)。指定端口：
+
+```bash
+./harness-graph/bin/harness-graph ui 4300
+```
+
+### Harness Graph 源码仓库
+
+如果你正在运行本仓库源码，在项目根目录执行：
+
+```bash
 npm ci
-npm run build
-node dist/cli.js install /path/to/your-project
-```
-
-安装器会创建 `harness-graph/`，并在 `AGENTS.md`、`CLAUDE.md` 和 `.gitignore` 顶部维护版本化入口块。它还会创建 `.agents/skills/harness-graph/SKILL.md` 和 `.claude/skills/harness-graph/SKILL.md`，供 Codex 和 Claude Code 发现项目入口。项目原有规则保持不变。
-
-Runtime、Workflow、Model、Check 和 Skill 会随业务项目保存。运行状态位于 `harness-graph/.state/`，Runtime 依赖位于 `harness-graph/runtime/node_modules/`，两者都被 Git 忽略。
-
-### 2. 验证安装
-
-安装完成后只使用项目本地入口：
-
-```bash
-./harness-graph/bin/harness-graph preflight
-./harness-graph/bin/harness-graph route
-```
-
-`preflight` 检查 Runtime、安装清单、Catalog、托管入口和状态目录。`route` 会先执行同样的检查，再返回当前 Agent 应加载的 Router Skill。
-
-以上相对命令在业务项目根目录执行。启动器不依赖安装时的绝对路径；移动整个项目后仍能从自身位置解析 Runtime。
-
-项目 clone 到新机器后，先根据安装目录中的 Lockfile 恢复 Runtime 生产依赖，再执行 `preflight`：
-
-```bash
-npm ci --prefix harness-graph/runtime --omit=dev --ignore-scripts --no-audit --no-fund
-./harness-graph/bin/harness-graph preflight
-```
-
-再次执行同一条 `npx ... install` 会检查并升级项目本地 Runtime；首次安装和升级都会生成只包含生产依赖的 Runtime `package.json` 与 Lockfile。若项目存在运行中的 Run，升级会停止并保留原 Runtime，待 Run 完成或取消后再重试 `install`。
-
-### 3. 让 Agent 执行任务
-
-日常使用时，在业务项目中直接向 Agent 描述任务。托管入口要求 Agent 先运行 `route`，也可以在提示中明确写出：
-
-```text
-先执行 ./harness-graph/bin/harness-graph route，
-然后使用 node-typescript-development 工作流修复配置加载失败，并补充回归测试。
-```
-
-Agent 会根据 Catalog 选择 Workflow，并通过项目本地 CLI 创建或恢复 Run。每次只加载当前 Step 的 Skill、Check 和必要输入，Transition 由 Runtime 返回。
-
-需要显式触发项目 Skill 时，Codex 使用 `$harness-graph`，Claude Code 使用 `/harness-graph`：
-
-```text
-$harness-graph 使用 node-typescript-development 工作流修复配置加载失败，并补充回归测试
-/harness-graph 使用 node-typescript-development 工作流修复配置加载失败，并补充回归测试
-```
-
-用户明确给出的 Workflow 名称或 Alias 会作为强制选择；名称不存在、有歧义或不是入口 Workflow 时会停止并报告。两个宿主 Adapter 只转交给 `harness-graph/skills/harness-graph/SKILL.md`，再由它加载 `workflow-router`。不要直接调用 `harness-graph/skills/` 中的内部 Step Skill。
-
-宿主或 Agent 重启后，重新执行 `route` 即可检查可恢复 Run。不要删除 `harness-graph/.state/`，也不要手工解析 Workflow 决定下一步。
-
-### 4. 修改项目本地 Workflow
-
-业务项目可以直接维护安装后的 Workflow、Skill、Check 和 Model。修改已激活 Workflow 或激活声明后，刷新并检查 Catalog：
-
-```bash
-./harness-graph/bin/harness-graph activate
-./harness-graph/bin/harness-graph activate --check
-./harness-graph/bin/harness-graph validate workflows/node-typescript-development/workflow.yaml
-```
-
-重复执行 `install` 不会覆盖项目修改或删除的 Workflow、Skill、Check 和 Model。当前安装使用 `layoutVersion: 2`。旧 `harness-next/` 的 `layoutVersion: 1` 安装继续执行同一个 `install` 即可迁移到 `harness-graph/`；安装器会保留项目资产和 `installedAt`，重建 Runtime 与 Catalog，并替换托管块和宿主 Adapter，不需要额外迁移命令。运行中的 Run 或新旧 Harness Root 并存会阻止迁移并保留原安装。Runtime 必需文件缺失时安装会失败；当前版本不提供 `repair` 或卸载命令。
-
-### 5. 失败处理
-
-`preflight`、Catalog 检查或 Runtime 返回 `blocked`、`failed`、`cancelled` 时应停止并报告，不得绕过项目本地入口继续执行。
-
-`.state/` 中不得保存 Secret 或完整 Prompt。需要查看底层 Runtime 命令时，参考后文“Runtime 调试”；日常任务不需要手工调用 `start`、`continue` 或 `cancel`。
-
-## 全局怎么工作
-
-```mermaid
-flowchart TD
-    A["多个 workflow.yaml"] --> B["workflow:sync（全量）"]
-    D["workflow-activation.yaml"] --> E["workflow:activate（指定入口及依赖）"]
-    B --> C["Workflow Catalog"]
-    E --> C
-    C --> D["workflow-router Skill"]
-    D --> E["start 创建或恢复 Run"]
-    E --> F["返回当前 Step Skill 和 Check"]
-    F --> G["Agent 只执行当前 Step"]
-    G --> H["continue 提交结构化结果"]
-    H --> I{"Runtime 状态"}
-    I -->|下一 Step| F
-    I -->|blocked| J["停止并报告"]
-    I -->|completed| K["校验输出并交付"]
-```
-
-贡献者只维护四类内容：
-
-| 路径 | 内容 |
-| --- | --- |
-| `harness/workflows/` | Workflow、Step 和 Transition |
-| `harness/models/` | 输入输出的 JSON Schema |
-| `harness/skills/` | Agent 完成 Step 的方法 |
-| `harness/checks/` | Step 的验收规则 |
-
-这些是 Harness Graph 引擎仓库中的发布源路径；安装到业务项目后分别位于 `harness-graph/workflows/`、`harness-graph/models/`、`harness-graph/checks/` 和 `harness-graph/skills/`。项目根目录的 `.agents/skills/harness-graph/` 与 `.claude/skills/harness-graph/` 只是宿主 Adapter，不是第二份 Skill 事实源。
-
-## 五个核心关键词
-
-| 项目关键词 | Open Workflow 写法 | 含义 |
-| --- | --- | --- |
-| `Workflow` | 整个文档 | 完整流程 |
-| `Step` | `do` 中的具名 Task | 一个执行或判断步骤 |
-| `Transition` | 声明顺序、`then`、`switch` | 如何进入下一个 Step |
-| `Skill` | 自定义 `call` | Agent 完成当前 Step 的方法 |
-| `Check` | `metadata.harness.checks` | 需要质量判断或分支时使用的验收规则 |
-
-业务输入和输出都是可选数据，不增加新的流程概念。
-
-## Step 如何继续
-
-- 固定顺序的 Skill Step 可以没有 `input`、`output` 和 Check；Skill 正常完成后视为 `passed`。
-- Skill Step 下一节点是 `switch` 时必须绑定 Check，由 Check 提供明确状态。
-- `passed` 继续，`needs_changes` 进入声明的回改 Step，`blocked` 停止并等待处理。
-- 每次结果都应包含可核对的 `evidence`，业务 `data` 可选。
-
-```yaml
-status: passed | needs_changes | blocked
-evidence:
-  - 执行或判断依据
-data: {}
-```
-
-## 当前支持范围
-
-已经实现：
-
-- YAML 和 JSON Workflow 解析；
-- Open Workflow Specification `1.0.3` 标准校验；
-- Workflow 输入输出 JSON Schema 校验；
-- 无显式业务输入输出的 Skill Playbook；
-- 顺序执行、`switch` 条件分支和通过 `then` 表达的回改 Cycle；
-- Mermaid 流程图生成；
-- 本地 SVG 图片生成；
-- 不存在的 Skill、Check 和 Transition 检查；
-- 不可达 Step 和无法到达结束节点的路径检查。
-- 从 Workflow 元数据生成路由 Catalog；
-- 本地 `start / continue / cancel` Runtime；
-- `executionKey` 幂等恢复和单 Worktree 活动 Run 限制；
-- Workflow Version、Source Hash 和 Step Revision 校验；
-- Cycle 最大尝试次数；
-- Check 结构化命令的本地执行和 Digest 证据；
-- Run 完成时的 Workflow Output Schema 校验。
-- npm、Yarn、pnpm 自动识别和 Node.js TypeScript 工程质量门禁；
-- 工作区内 JSON Schema 通过 `harness://models/` 相互引用。
-
-首版只接受两类 Task：
-
-- 自定义 `call`：映射到本地 `harness/skills/<call>/SKILL.md`；
-- `switch`：只负责流程分支。
-
-`schedule`、HTTP、gRPC、MCP、A2A、事件任务和其他远程执行能力会被拒绝。`for`、`fork`、`try` 等标准结构等本地执行语义明确后再开放。
-
-Runtime 不调用外部 Agent，也不提供分布式调度。`workflow-router` 由当前本地 Agent 加载，并自动调用 Runtime、加载当前 Skill 和提交结果。
-
-第一版提供 Codex 和 Claude Code 的项目 Skill Adapter，但没有宿主生命周期 Hook。Agent 或宿主完全重启后不保证主动恢复；重新触发项目 Skill 或加载 Router 后，Runtime 可以根据本地状态安全恢复。
-
-## Agent 使用
-
-安装后的项目任务只需要执行唯一入口：
-
-```text
-./harness-graph/bin/harness-graph route
-```
-
-命令先执行 preflight，再返回项目本地 Router Skill。Router 只读取 `harness-graph/generated/workflow-catalog.json` 的 `entryWorkflows`，并通过项目本地 CLI 执行 `start`、`continue` 和必要的 `cancel`。用户不需要逐条运行内部命令。
-
-### 使用 Node.js TypeScript 工作流
-
-Node.js TypeScript 工作流适用于新增或修改功能、修复缺陷和重构代码。只解释代码或只做 Review 时不会选择该 Workflow。
-
-在已安装 Harness Graph 的项目中，直接描述需要完成的变更：
-
-```text
-先执行 ./harness-graph/bin/harness-graph route，
-再使用 node-typescript-development 工作流修复配置加载失败，并补充回归测试。
-```
-
-也可以使用 Alias `nodejs-development` 或 `typescript-development`。没有明确指定名称时，Router 会根据请求内容和 Catalog 中的适用、排除场景选择 Workflow；无法得到唯一候选时会停止并报告，不会自行猜测。
-
-Router 选中 `harness-graph/workflows/node-typescript-development/workflow.yaml` 后，会先完成两个前置 Workflow：`common-change-execution-policy` 加载所有修改类任务共享的计划、范围和证据协议，`node-typescript-standards` 加载 Node.js TypeScript 规范；随后才进入开发流程：
-
-| 阶段 | 执行内容 | 未通过时 |
-| --- | --- | --- |
-| 分析 | 阅读相关代码、约束和测试，明确目标、范围、风险及验证方式，不修改代码 | 分析信息不足时重新分析；缺少用户决定、权限或外部条件时停止 |
-| 实现 | 按已通过的分析范围修改代码；行为变化先补失败测试，再完成最小实现 | 进入后续质量门禁 |
-| 质量门禁 | 执行项目 Typecheck、Lint、Test、Build、变更文件规范检查和 `git diff --check` | 任一命令失败都会返回实现阶段修复 |
-| Review | 基于需求、实际 Diff、测试和命令证据检查正确性、回归、兼容性与范围 | 发现可修复问题时返回实现阶段 |
-| 交付 | 汇总变更、验证证据和剩余风险 | 输出不满足 Schema 时不会完成 Run |
-
-### 计划和接口文档放在哪里
-
-`common-change-execution-policy` 在所有修改类入口前统一生效。单文件、低风险且不改变公开 Interface、Schema、迁移或发布行为的简单任务可以只在对话中展示计划；多文件、跨 Module、公开 Interface、迁移、发布部署、新项目初始化或需要跨重启恢复的非平凡任务会先向用户展示计划，再保存到目标业务项目已有的计划目录。业务项目没有既有约定时使用：
-
-```text
-docs/plans/YYYY-MM-DD-<slug>.md
-```
-
-分析 Step 通过普通 `evidence` 提交 `planPath=<相对 Workspace Root 的路径>`。后续实现和 Review Step 从这个路径读取计划；计划正文不会复制进 Runtime 状态，也没有新增 Plan 顶层模型。计划是展示后允许的第一次写入，在计划 Check 通过前不会修改生产代码或配置。
-
-分析前还会读取目标 Workspace 中已经存在且与任务相关的项目规则、`CONTEXT.md`、项目 `STANDARDS.md` 和 `docs/adr/`。`CONTEXT.md` 维护项目术语和共享语言，项目 `STANDARDS.md` 维护长期开发规范，`docs/adr/` 记录需要长期保留的架构决定；不存在时不创建占位文件。计划的“接口与文档影响”必须说明这些文档是否需要更新，计划 Check 通过后才由实现 Step 修改，Review 再对照实际 Diff 检查一致性。
-
-分析 Step 可以按任务情况参考外部 `brainstorming`、`grill-with-docs`、`research` 或调试类 Skill。它们是可选的方法提示，不是 Harness 的安装依赖；宿主发现不到时，Agent 直接使用当前本地 Skill 完成。外部 Skill 不拥有计划文件、项目知识文档或 Transition，也不能改变 Check 和 Runtime 的执行契约。
-
-公开 Interface 变化时优先遵循业务项目已有约定。没有约定时，默认位置如下：
-
-| Interface | 机器事实源或使用说明 |
-| --- | --- |
-| HTTP | `docs/contracts/http/openapi.yaml` |
-| 事件 | `docs/contracts/events/asyncapi.yaml` |
-| gRPC | `proto/` |
-| CLI | 代码和参数 Schema 为事实源，使用说明写入 `docs/reference/cli.md` |
-| Harness Workflow | `harness-graph/workflows/<name>/workflow.yaml` 与 `harness-graph/models/*.schema.json`；说明写入同一 Workflow 目录的 `README.md` |
-
-实现顺序是先更新可校验的机器事实源，再更新面向使用者的说明、示例和兼容或迁移信息。Markdown 不复制维护完整字段结构。
-
-每个 Step 最多尝试 3 次。执行过程中，Agent 每次只加载当前 Step 的 Skill、Check 和必要输入，Transition 完全由 Runtime 返回，用户不需要手工执行 `workflow:start` 或 `workflow:continue`。
-
-Workflow 完成后输出以下结构：
-
-```yaml
-status: done
-summary: 本次变更摘要
-changedFiles:
-  - src/example.ts
-verification:
-  - npm test 通过
-risks: []
-```
-
-一个 Worktree 同时只能有一个 `running` Run。Agent 或宿主重启后，重新执行 `route` 可以使用相同的 `executionKey` 恢复；如果 Runtime 返回 `interrupted`，Router 会先核对工作区和已有证据，再决定继续、返工或阻塞。
-
-项目初始化和工程配置使用：
-
-```text
-harness-graph/workflows/node-typescript-project-configuration/workflow.yaml
-```
-
-它用于初始化新的 Node.js TypeScript 项目，或规范化已有项目的 Node.js 版本、包管理器、Lockfile、TypeScript、ESLint、测试、构建、README 和 CI。业务功能开发仍由 `node-typescript-development` 处理。
-
-Workflow 自动读取 `package.json#packageManager` 和项目根目录 Lockfile。新项目默认 npm；已有项目保留 npm、Yarn 或 pnpm。多个 Lockfile、声明冲突或无法判断时进入 `blocked`，不会自动删除文件或迁移包管理器。
-
-Workflow Input 使用 `projectRoot` 指定目标项目目录，默认 `.`。Harness 的 Workflow、Skill、Check 和 Run 状态仍从 Harness 根目录加载；目标可以是另一个本地空目录或已有项目，但不能是远程仓库或远程执行目标。
-
-## Workflow 管理页面
-
-仓库提供只读的本地管理页面，用于浏览 Workflow 图、Step、Transition 及其关联的 Skill、Check 和 Model 文件：
-
-```bash
 npm run workflow:ui
 ```
 
-默认访问 `http://127.0.0.1:4173`。需要指定端口时直接传入端口号：
+然后访问 [http://127.0.0.1:4173](http://127.0.0.1:4173)。不要直接双击打开 `web/index.html`，页面需要本地 UI 服务提供 Workflow API。
+
+### UI 操作
+
+- 点击左侧 Workflow 查看流程图。
+- 拖动空白处移动画布，拖动节点块移动单个节点。
+- 点击节点后，右侧只显示该节点对应的 Workflow、Skill 和 Check 文件。
+- 点击文件可在大弹框中查看完整内容。
+- `适配` 恢复默认视图，`网格` 显示或隐藏背景网格，`+` 和 `-` 调整缩放。
+- 右侧的运行观察区域显示当前 Workflow 的 Run、Step、状态、Check 和证据。
+
+## 常用命令
 
 ```bash
-npm run workflow:ui -- 4300
-```
+# 检查本地安装
+./harness-graph/bin/harness-graph preflight
 
-页面数据在请求时通过现有 Compiler 从 `workflow.yaml` 生成，不维护第二份流程定义。页面只读取当前工作区的 Workflow、Skill、Check 和 Model 文件，不会上传源代码或向远程服务发请求。
+# 获取 Agent 入口指令
+./harness-graph/bin/harness-graph route
 
-### 页面操作
-
-- 左侧目录支持按名称或 Alias 搜索，也可以切换为只看入口 Workflow。点击某个 Workflow 后，地址栏会同步为 `#workflow=<name>`，刷新页面可以直接恢复该 Workflow。
-- 中间画布有两种拖拽手势：拖动空白处平移整个画布；按住具体节点块拖动，只移动该节点，连线会跟随更新。点击节点（Skill、Switch、开始/结束节点）会选中它，并刷新右侧检视器。
-- 选中节点后，右侧只显示该节点对应的文件：Skill 节点显示它的 Skill 和绑定 Check，Switch 节点显示它所属的 Workflow 和绑定 Check。开始/结束节点是流程边界节点，不绑定独立文件，选中时仍显示所属 Workflow 的关联文件；未选中节点时也显示当前 Workflow 的全部关联文件。
-- 画布支持滚轮缩放，也可以使用 `−`、`+` 调整缩放比例。`适配` 会重置当前画布的平移和缩放，恢复到默认视图，方便找回被拖出可视区域的图；`网格` 用于显示或隐藏背景网格，不会改变节点位置。
-- 入口 Workflow 如果声明了前置 Workflow，地图上方会出现范围切换：`当前 Workflow` 只显示当前流程，`含前置 Workflow` 显示完整链路。完整链路中的前置节点使用名称前缀标识，便于区分来源。
-- 点击右侧文件条目会在大尺寸弹框中预览完整内容，而不是限制在检视器的小区域内横向滚动。可以点击右上角关闭按钮、弹框外部，或按 `Esc` 关闭；`复制内容` 可将当前文件复制到剪贴板。
-
-页面在窄屏浏览器中会将左侧目录和右侧检视器切换为抽屉，通过顶部按钮打开；桌面浏览器则默认使用三栏布局。若浏览器全屏后看不到图，先确认页面仍然加载了 `http://127.0.0.1:<port>`，再点击右上角刷新按钮或重新选择左侧 Workflow。
-
-示例：
-
-```text
-http://127.0.0.1:4173/#workflow=node-typescript-development
-```
-
-## 本地开发
-
-要求 Node.js 22 及以上版本。
-
-```bash
-npm install
-npm run project:check
-npm run check:all
-npm run package:check
-npm run build
-npm run doctor
-npm run workflow:activate
-npm run workflow:sync
-npm run workflow:validate -- harness/workflows/common-change-execution-policy/workflow.yaml
-npm run workflow:validate -- harness/workflows/node-typescript-standards/workflow.yaml
-npm run workflow:validate -- harness/workflows/node-typescript-development/workflow.yaml
-npm run workflow:validate -- harness/workflows/node-typescript-project-configuration/workflow.yaml
-npm run workflow:diagram -- harness/workflows/node-typescript-standards/workflow.yaml
-npm run workflow:image -- harness/workflows/common-change-execution-policy/workflow.yaml
-npm run workflow:image -- harness/workflows/node-typescript-standards/workflow.yaml
-npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml
-npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml --expand-prerequisites
-npm run workflow:image -- harness/workflows/node-typescript-project-configuration/workflow.yaml
-```
-
-`npm run package:check` 会构建真实 npm tarball，检查发布边界，并通过 `npm exec` 安装到临时项目后执行 `preflight`。核心 Workflow 或 Runtime 行为有意变化时，先审阅实现 Diff，再执行 `UPDATE_GOLDEN=1 npm test` 更新 Golden。
-
-### 发布 npm 包
-
-公开包名是 `@jichaowang/harness-graph`。发布版本时，先让 `package.json` 和 `package-lock.json` 使用同一个语义化版本，然后推送对应的 `v<version>` Tag：
-
-```bash
-npm run release:patch
-```
-
-需要次版本或主版本时使用 `npm run release:minor` 或 `npm run release:major`。这些命令会校验当前分支是 `main`、确认工作区干净，升级 `package.json`/`package-lock.json`，创建版本提交和 Tag，推送 `main` 与 Tag。`.github/workflows/release.yml` 只响应 `vX.Y.Z` Tag，随后通过 npm Trusted Publishing 的 OIDC 发布带 provenance 的 public 包。首次手工发布创建包后，需要在 npm Package Settings → Trusted Publishers 绑定 GitHub Actions 的 `evander-wang/harness-graph`、`release.yml` 和 `npm` Environment；不要把长期 npm Token 写入仓库。
-
-可运行示例包括 [common-change-execution-policy/workflow.yaml](./harness/workflows/common-change-execution-policy/workflow.yaml)、[node-typescript-standards/workflow.yaml](./harness/workflows/node-typescript-standards/workflow.yaml)、[node-typescript-development/workflow.yaml](./harness/workflows/node-typescript-development/workflow.yaml) 和 [node-typescript-project-configuration/workflow.yaml](./harness/workflows/node-typescript-project-configuration/workflow.yaml)。前两个是非入口前置 Workflow，不能由用户直接路由。
-
-## Workflow 激活范围
-
-[workflow-activation.yaml](./harness/workflow-activation.yaml) 是人工维护的 Router 入口声明。每一项是相对 Harness Root 的入口 `workflow.yaml` 路径：
-
-```yaml
-version: 1
-entryWorkflowPaths:
-  - workflows/node-typescript-development/workflow.yaml
-  - workflows/node-typescript-project-configuration/workflow.yaml
-```
-
-执行以下命令会读取该文件，将声明入口和它们的递归前置依赖写入同一份 `harness/generated/workflow-catalog.json`：
-
-```bash
-npm run workflow:activate
-```
-
-前置 Workflow 会保留在 Catalog 中供执行期解析，但不是 Router 候选入口。`npm run workflow:sync` 仍可由全部 Workflow 覆盖生成同一个 Catalog；最后执行的命令决定当前 Router 的候选范围。
-
-## Node.js 项目质量门禁
-
-`project-check` 是包管理器无关的本地检查入口：
-
-```bash
-npm run project:check
-```
-
-也可以从 Harness 根目录直接检查另一个本地项目：
-
-```bash
-npm run project:check -- ../path/to/project
-```
-
-它先检查 `packageManager`、唯一 Lockfile、`tsconfig.json`、ESLint、README、`.gitignore`、CI、Node.js 版本和标准 scripts，再使用识别出的 npm、Yarn 或 pnpm 依次执行 `typecheck`、`lint`、`test` 和 `build`。完整命令输出不会写入 Run 状态，Runtime 只保存退出码、耗时和 Digest。
-
-引擎仓库中的 `harness/workflows/node-typescript-standards/STANDARDS.md` 会安装为 `harness-graph/workflows/node-typescript-standards/STANDARDS.md`。它是 Node.js TypeScript 开发规范的唯一来源，包含模型读取的开发约束，以及质量门禁读取的结构化阈值。质量门禁只检查本次变更的生产 TypeScript 文件，避免历史技术债阻断无关改动；改动任一生产文件后，该文件必须符合全部阈值。
-
-项目配置请求示例：
-
-```json
-{
-  "request": "初始化一个 Node.js TypeScript CLI 项目",
-  "projectRoot": "../my-cli",
-  "constraints": []
-}
-```
-
-## Runtime 调试
-
-安装后的 Router 使用：
-
-```bash
-./harness-graph/bin/harness-graph start <workflow.yaml> <execution-key> <input.json>
-./harness-graph/bin/harness-graph continue <run-id> [step-result.json]
-./harness-graph/bin/harness-graph cancel <run-id> <reason>
+# 查看某次运行报告
 ./harness-graph/bin/harness-graph report <run-id> --format markdown
 ```
 
-Runtime 会把实际执行的 Step、Transition、Check 和证据摘要保存在对应 Run 的 `.state/runs/<run-id>/state.json` 中；`report` 读取这份记录生成摘要，不重新解析 Workflow 来猜测执行路径。执行状态和 trace 属于本地状态，不提交 Git，也不保存完整 Prompt 或 Secret。
+运行状态保存在 `harness-graph/.state/`，由本地 Runtime 使用，不要手工删除或修改。
 
-下面的 npm scripts 仅供 Harness Graph 引擎仓库开发调试使用：
+## 获取帮助
 
-```bash
-npm run workflow:start -- <workflow.yaml> <execution-key> <input.json>
-npm run workflow:continue -- <run-id> [step-result.json]
-npm run workflow:cancel -- <run-id> <reason>
-```
-
-命令 stdout 输出 JSON。安装项目使用 `harness-graph/.state/runs/<run-id>/state.json`；引擎仓库兼容布局继续使用 `.harness/runs/`。两者都不得写入 Secret 和完整 Prompt。
-
-## 生成图片
-
-`workflow:image` 根据 Workflow 编译得到的同一份有向图生成本地 SVG，不需要浏览器、远程服务或图片上传。
+如果安装失败，先执行：
 
 ```bash
-npm run workflow:image -- harness/workflows/node-typescript-standards/workflow.yaml
+./harness-graph/bin/harness-graph preflight
 ```
 
-默认输出：
-
-```text
-harness/generated/node-typescript-standards.svg
-```
-
-也可以指定当前工作区内的输出路径：
-
-```bash
-npm run workflow:image -- harness/workflows/node-typescript-standards/workflow.yaml docs/node-typescript-standards.svg
-```
-
-Mermaid 和 SVG 都是展示结果，唯一事实源仍然是 `workflow.yaml`。
-
-当 Workflow 声明 `metadata.harness.prerequisites` 时，可添加 `--expand-prerequisites` 展开其全部前置 Workflow 和 `prerequisite` 依赖边：
-
-```bash
-npm run workflow:diagram -- harness/workflows/node-typescript-development/workflow.yaml --expand-prerequisites
-npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml --expand-prerequisites
-```
-
-展开图片默认输出为 `harness/generated/node-typescript-development-expanded.svg`；指定输出路径时，标志可位于路径前后。
-
-## 依赖说明
-
-项目精确锁定 `@openworkflowspec/sdk@1.0.3-alpha4`。该版本目前仍为 `alpha`，所有 SDK 调用都收口在 `compileWorkflow()` 后面，后续升级不应影响 Workflow 贡献者。
+如果 UI 打开后为空，确认访问的是 `http://127.0.0.1:<port>`，而不是 `file://` 页面；然后刷新浏览器。
