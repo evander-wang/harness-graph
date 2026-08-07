@@ -1,7 +1,7 @@
 import type { CheckCommandExecution } from "./checks.js";
 import { parseRunState, type WorkflowRunState, type WorkflowTraceEntry } from "./run-state.js";
 import { resolveHarnessLayout } from "./paths.js";
-import { readRunState } from "./runtime-state.js";
+import { readAllRunStates, readRunState } from "./runtime-state.js";
 
 export type WorkflowExecutionReportStep = {
   id: string;
@@ -16,11 +16,14 @@ export type WorkflowExecutionReportStep = {
 export type WorkflowExecutionReport = {
   runId: string;
   status: WorkflowRunState["status"];
+  workspaceRoot: string;
+  currentStep: { id: string; attempt: number; phase: "in_progress" } | null;
+  blockedReason?: string;
   workflow: {
     name: string;
     path: string;
     version: string;
-    hash: string;
+    sourceHash: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -88,11 +91,18 @@ export function buildWorkflowExecutionReport(state: WorkflowRunState): WorkflowE
   return {
     runId: state.runId,
     status: state.status,
+    workspaceRoot: state.workspaceRoot,
+    currentStep: state.currentStep === null ? null : {
+      id: state.currentStep.id,
+      attempt: state.currentStep.attempt,
+      phase: state.currentStep.phase,
+    },
+    ...(state.status === "blocked" && state.evidence.length > 0 ? { blockedReason: state.evidence.join(" ") } : {}),
     workflow: {
       name: state.workflowName,
       path: state.workflowPath,
       version: state.workflowVersion,
-      hash: state.workflowHash,
+      sourceHash: state.workflowHash,
     },
     createdAt: state.createdAt,
     updatedAt: state.updatedAt,
@@ -110,15 +120,28 @@ export async function loadWorkflowExecutionReport(
   return buildWorkflowExecutionReport(parseRunState(await readRunState(stateRoot, runId)));
 }
 
+export async function loadWorkflowExecutionReports(rootDir: string): Promise<WorkflowExecutionReport[]> {
+  const stateRoot = resolveHarnessLayout(rootDir).stateRoot;
+  const states = await readAllRunStates(stateRoot);
+  return states
+    .map((value) => buildWorkflowExecutionReport(parseRunState(value)))
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
 export function renderWorkflowExecutionReport(report: WorkflowExecutionReport): string {
   const lines = [
     `Workflow: ${report.workflow.name} (${report.workflow.version})`,
     `Status: ${report.status}`,
     `Run: ${report.runId}`,
+    `Source Hash: ${report.workflow.sourceHash}`,
+    `Workspace Root: ${report.workspaceRoot}`,
+    `Current Step: ${report.currentStep?.id ?? "none"}`,
+    ...(report.blockedReason === undefined ? [] : [`Blocked Reason: ${report.blockedReason}`]),
     "",
     "Steps:",
     ...report.steps.flatMap((step, index) => [
       `${String(index + 1)}. ${step.id} [${step.status}] (attempt ${String(step.attempt)})`,
+      ...step.evidence.map((evidence) => `   Evidence: ${evidence}`),
       ...step.checkExecutions.map(
         (execution) => `   Check: ${execution.checkId} [${execution.exitCode === 0 ? "passed" : "needs_changes"}]`,
       ),

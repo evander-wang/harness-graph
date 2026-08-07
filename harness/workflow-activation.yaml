@@ -1,4 +1,4 @@
 version: 1
 entryWorkflowPaths:
   - workflows/node-typescript-development/workflow.yaml
-  - workflows/node-project-configuration/workflow.yaml
+  - workflows/node-typescript-project-configuration/workflow.yaml

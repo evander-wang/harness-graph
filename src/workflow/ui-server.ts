@@ -10,6 +10,7 @@ import { buildWorkflowCatalog, type WorkflowCatalogEntry } from "./catalog.js";
 import { compileWorkflow } from "./compiler.js";
 import { expandWorkflowPrerequisites } from "./expanded-graph.js";
 import { resolveHarnessLayout, type HarnessLayout } from "./paths.js";
+import { loadWorkflowExecutionReport, loadWorkflowExecutionReports } from "./report.js";
 
 export type WorkflowUiServerOptions = {
   rootDir: string;
@@ -208,6 +209,14 @@ function workflowNameFromPath(pathname: string): string | undefined {
   try { return decodeURIComponent(value); } catch { return undefined; }
 }
 
+function runIdFromPath(pathname: string): string | undefined {
+  const prefix = "/api/runs/";
+  if (!pathname.startsWith(prefix)) return undefined;
+  const value = pathname.slice(prefix.length);
+  if (value.length === 0 || value.includes("/")) return undefined;
+  try { return decodeURIComponent(value); } catch { return undefined; }
+}
+
 export function createWorkflowUiServer(options: WorkflowUiServerOptions): Server {
   const layout = resolveHarnessLayout(resolve(options.rootDir));
   const moduleRoot = dirname(fileURLToPath(import.meta.url));
@@ -223,6 +232,19 @@ export function createWorkflowUiServer(options: WorkflowUiServerOptions): Server
       if (requestUrl.pathname === "/api/health") { json(response, 200, { ok: true, rootDir: layout.workspaceRoot }); return; }
       if (requestUrl.pathname === "/api/workflows") {
         json(response, 200, { entryWorkflows: entries, workflows: catalog.workflows.map((workflow) => ({ ...workflow, entry: entries.includes(workflow.name) })) });
+        return;
+      }
+      if (requestUrl.pathname === "/api/runs") {
+        json(response, 200, { runs: await loadWorkflowExecutionReports(layout.harnessRoot) });
+        return;
+      }
+      const runId = runIdFromPath(requestUrl.pathname);
+      if (runId !== undefined) {
+        try {
+          json(response, 200, await loadWorkflowExecutionReport(layout.harnessRoot, runId));
+        } catch {
+          json(response, 404, { error: "Workflow Run 不存在。" });
+        }
         return;
       }
       const workflowName = workflowNameFromPath(requestUrl.pathname);

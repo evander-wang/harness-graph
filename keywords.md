@@ -4,6 +4,8 @@
 
 Workflow Catalog、Router、Runtime 和 Run 是工具内部实现，不是新的流程建模概念。贡献者设计流程时仍然只使用下面五个关键词。
 
+各目录在作用域命名、语言标准和真实公司扩展中的职责分工，参见 [docs/design.md](./docs/design.md#发布资产命名与职责分工)。
+
 ## Workflow
 
 一个完整流程，对应一个标准 `workflow.yaml`：
@@ -24,8 +26,8 @@ Workflow
 
 ```yaml
 do:
-  - load-node-typescript-standards:
-      call: load-node-typescript-standards
+  - load-standards:
+      call: node-typescript-load-standards
 ```
 
 首版 Step 只有两种形式：
@@ -49,16 +51,16 @@ Step 之间的连接方式：
 自定义 `call` 的值就是 Skill ID：
 
 ```yaml
-call: load-node-typescript-standards
+call: node-typescript-load-standards
 ```
 
 它固定解析到：
 
 ```text
-harness/skills/load-node-typescript-standards/SKILL.md
+harness/skills/node-typescript-load-standards/SKILL.md
 ```
 
-这是引擎仓库的发布源路径；安装后物理路径是 `harness-graph/skills/load-node-typescript-standards/SKILL.md`。
+这是引擎仓库的发布源路径；安装后物理路径是 `harness-graph/skills/node-typescript-load-standards/SKILL.md`。
 
 Skill 只完成当前 Step，不决定后续流程。
 
@@ -70,16 +72,16 @@ Check 是可选的验收规则。固定流转的 Skill Step 可以没有 Check�
 metadata:
   harness:
     checks:
-      - change-review-result
+      - common-change-review-result
 ```
 
 它固定解析到：
 
 ```text
-harness/checks/change-review-result/CHECK.md
+harness/checks/common-change-review-result/CHECK.md
 ```
 
-安装后物理路径是 `harness-graph/checks/change-review-result/CHECK.md`。
+安装后物理路径是 `harness-graph/checks/common-change-review-result/CHECK.md`。
 
 Check 必须输出明确状态和可核对证据：
 
@@ -100,15 +102,16 @@ Workflow 和 Step 的业务输入输出都是可选的。需要稳定结构校�
 input:
   schema:
     resource:
-      endpoint: harness://models/node-change-request.schema.json
+      endpoint: harness://models/node-typescript-change-request.schema.json
 ```
 
-在引擎仓库中该 URI 解析到 `harness/models/node-change-request.schema.json`，安装后解析到 `harness-graph/models/node-change-request.schema.json`，不会访问网络。
+在引擎仓库中该 URI 解析到 `harness/models/node-typescript-change-request.schema.json`，安装后解析到 `harness-graph/models/node-typescript-change-request.schema.json`，不会访问网络。
 
 ## 命名规范
 
 | 对象 | 格式 | 示例 |
 | --- | --- | --- |
-| Workflow、Step、Skill、Check ID | `kebab-case` | `change-review-result` |
+| Workflow、Skill、Check ID | `<scope>-<capability>` | `common-change-review-result` |
+| Workflow 内部 Step ID | 局部 `kebab-case` | `load-standards`、`analyze-change` |
 | JSON 字段名 | `lowerCamelCase` | `maxAttempts` |
 | Check 状态 | `snake_case` | `needs_changes` |

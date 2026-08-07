@@ -207,7 +207,7 @@ Node.js TypeScript 工作流适用于新增或修改功能、修复缺陷和重�
 
 也可以使用 Alias `nodejs-development` 或 `typescript-development`。没有明确指定名称时，Router 会根据请求内容和 Catalog 中的适用、排除场景选择 Workflow；无法得到唯一候选时会停止并报告，不会自行猜测。
 
-Router 选中 `harness-graph/workflows/node-typescript-development/workflow.yaml` 后，会先完成两个前置 Workflow：`change-execution-policy` 加载所有修改类任务共享的计划、范围和证据协议，`node-typescript-standards` 加载 Node.js TypeScript 规范；随后才进入开发流程：
+Router 选中 `harness-graph/workflows/node-typescript-development/workflow.yaml` 后，会先完成两个前置 Workflow：`common-change-execution-policy` 加载所有修改类任务共享的计划、范围和证据协议，`node-typescript-standards` 加载 Node.js TypeScript 规范；随后才进入开发流程：
 
 | 阶段 | 执行内容 | 未通过时 |
 | --- | --- | --- |
@@ -219,13 +219,17 @@ Router 选中 `harness-graph/workflows/node-typescript-development/workflow.yaml
 
 ### 计划和接口文档放在哪里
 
-`change-execution-policy` 在所有修改类入口前统一生效。单文件、低风险且不改变公开 Interface、Schema、迁移或发布行为的简单任务可以只在对话中展示计划；多文件、跨 Module、公开 Interface、迁移、发布部署、新项目初始化或需要跨重启恢复的非平凡任务会先向用户展示计划，再保存到目标业务项目已有的计划目录。业务项目没有既有约定时使用：
+`common-change-execution-policy` 在所有修改类入口前统一生效。单文件、低风险且不改变公开 Interface、Schema、迁移或发布行为的简单任务可以只在对话中展示计划；多文件、跨 Module、公开 Interface、迁移、发布部署、新项目初始化或需要跨重启恢复的非平凡任务会先向用户展示计划，再保存到目标业务项目已有的计划目录。业务项目没有既有约定时使用：
 
 ```text
 docs/plans/YYYY-MM-DD-<slug>.md
 ```
 
 分析 Step 通过普通 `evidence` 提交 `planPath=<相对 Workspace Root 的路径>`。后续实现和 Review Step 从这个路径读取计划；计划正文不会复制进 Runtime 状态，也没有新增 Plan 顶层模型。计划是展示后允许的第一次写入，在计划 Check 通过前不会修改生产代码或配置。
+
+分析前还会读取目标 Workspace 中已经存在且与任务相关的项目规则、`CONTEXT.md`、项目 `STANDARDS.md` 和 `docs/adr/`。`CONTEXT.md` 维护项目术语和共享语言，项目 `STANDARDS.md` 维护长期开发规范，`docs/adr/` 记录需要长期保留的架构决定；不存在时不创建占位文件。计划的“接口与文档影响”必须说明这些文档是否需要更新，计划 Check 通过后才由实现 Step 修改，Review 再对照实际 Diff 检查一致性。
+
+分析 Step 可以按任务情况参考外部 `brainstorming`、`grill-with-docs`、`research` 或调试类 Skill。它们是可选的方法提示，不是 Harness 的安装依赖；宿主发现不到时，Agent 直接使用当前本地 Skill 完成。外部 Skill 不拥有计划文件、项目知识文档或 Transition，也不能改变 Check 和 Runtime 的执行契约。
 
 公开 Interface 变化时优先遵循业务项目已有约定。没有约定时，默认位置如下：
 
@@ -258,7 +262,7 @@ risks: []
 项目初始化和工程配置使用：
 
 ```text
-harness-graph/workflows/node-project-configuration/workflow.yaml
+harness-graph/workflows/node-typescript-project-configuration/workflow.yaml
 ```
 
 它用于初始化新的 Node.js TypeScript 项目，或规范化已有项目的 Node.js 版本、包管理器、Lockfile、TypeScript、ESLint、测试、构建、README 和 CI。业务功能开发仍由 `node-typescript-development` 处理。
@@ -313,21 +317,21 @@ npm run build
 npm run doctor
 npm run workflow:activate
 npm run workflow:sync
-npm run workflow:validate -- harness/workflows/change-execution-policy/workflow.yaml
+npm run workflow:validate -- harness/workflows/common-change-execution-policy/workflow.yaml
 npm run workflow:validate -- harness/workflows/node-typescript-standards/workflow.yaml
 npm run workflow:validate -- harness/workflows/node-typescript-development/workflow.yaml
-npm run workflow:validate -- harness/workflows/node-project-configuration/workflow.yaml
+npm run workflow:validate -- harness/workflows/node-typescript-project-configuration/workflow.yaml
 npm run workflow:diagram -- harness/workflows/node-typescript-standards/workflow.yaml
-npm run workflow:image -- harness/workflows/change-execution-policy/workflow.yaml
+npm run workflow:image -- harness/workflows/common-change-execution-policy/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-standards/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml --expand-prerequisites
-npm run workflow:image -- harness/workflows/node-project-configuration/workflow.yaml
+npm run workflow:image -- harness/workflows/node-typescript-project-configuration/workflow.yaml
 ```
 
 `npm run package:check` 会构建真实 npm tarball，检查发布边界，并通过 `npm exec` 安装到临时项目后执行 `preflight`。核心 Workflow 或 Runtime 行为有意变化时，先审阅实现 Diff，再执行 `UPDATE_GOLDEN=1 npm test` 更新 Golden。
 
-可运行示例包括 [change-execution-policy/workflow.yaml](./harness/workflows/change-execution-policy/workflow.yaml)、[node-typescript-standards/workflow.yaml](./harness/workflows/node-typescript-standards/workflow.yaml)、[node-typescript-development/workflow.yaml](./harness/workflows/node-typescript-development/workflow.yaml) 和 [node-project-configuration/workflow.yaml](./harness/workflows/node-project-configuration/workflow.yaml)。前两个是非入口前置 Workflow，不能由用户直接路由。
+可运行示例包括 [common-change-execution-policy/workflow.yaml](./harness/workflows/common-change-execution-policy/workflow.yaml)、[node-typescript-standards/workflow.yaml](./harness/workflows/node-typescript-standards/workflow.yaml)、[node-typescript-development/workflow.yaml](./harness/workflows/node-typescript-development/workflow.yaml) 和 [node-typescript-project-configuration/workflow.yaml](./harness/workflows/node-typescript-project-configuration/workflow.yaml)。前两个是非入口前置 Workflow，不能由用户直接路由。
 
 ## Workflow 激活范围
 
@@ -337,7 +341,7 @@ npm run workflow:image -- harness/workflows/node-project-configuration/workflow.
 version: 1
 entryWorkflowPaths:
   - workflows/node-typescript-development/workflow.yaml
-  - workflows/node-project-configuration/workflow.yaml
+  - workflows/node-typescript-project-configuration/workflow.yaml
 ```
 
 执行以下命令会读取该文件，将声明入口和它们的递归前置依赖写入同一份 `harness/generated/workflow-catalog.json`：

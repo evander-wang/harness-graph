@@ -35,6 +35,7 @@ import {
 } from "./workflow/report.js";
 import { renderWorkflowSvg } from "./workflow/svg-renderer.js";
 import { startWorkflowUiServer } from "./workflow/ui-server.js";
+import { isFirstPartyAssetRoot, validatePublishedAssetNames } from "./workflow/asset-naming.js";
 
 export type CliIo = {
   cwd: string;
@@ -111,14 +112,21 @@ async function doctor(io: CliIo): Promise<number> {
     }
   }
 
-  if (missing.length === 0) {
+  const namingDiagnostics = isFirstPartyAssetRoot(io.cwd)
+    ? await validatePublishedAssetNames(io.cwd)
+    : [];
+  if (missing.length === 0 && namingDiagnostics.length === 0) {
     io.stdout("仓库结构：通过");
     return 0;
   }
 
   io.stderr("仓库结构：未通过");
-  for (const path of missing) {
-    io.stderr(`- 缺失：${path}`);
+  for (const path of missing) io.stderr(`- 缺失：${path}`);
+  if (namingDiagnostics.length > 0) {
+    io.stderr("发布资产命名：未通过");
+    for (const diagnostic of namingDiagnostics) {
+      io.stderr(`[${diagnostic.code}] ${diagnostic.path}: ${diagnostic.message}`);
+    }
   }
   return 1;
 }
@@ -205,6 +213,16 @@ async function compileCommand(command: "validate" | "diagram", path: string, io:
       io.stderr(`[${diagnostic.code}] ${diagnostic.message}`);
     }
     return 1;
+  }
+
+  if (command === "validate" && isFirstPartyAssetRoot(io.cwd)) {
+    const namingDiagnostics = await validatePublishedAssetNames(io.cwd);
+    if (namingDiagnostics.length > 0) {
+      for (const diagnostic of namingDiagnostics) {
+        io.stderr(`[${diagnostic.code}] ${diagnostic.path}: ${diagnostic.message}`);
+      }
+      return 1;
+    }
   }
 
   if (command === "validate") {

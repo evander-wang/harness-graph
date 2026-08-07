@@ -3,17 +3,17 @@
   "mode": "selected",
   "entryWorkflows": [
     "node-typescript-development",
-    "node-project-configuration"
+    "node-typescript-project-configuration"
   ],
   "workflows": [
     {
-      "name": "change-execution-policy",
+      "name": "common-change-execution-policy",
       "namespace": "harness-graph",
       "version": "1.1.0",
       "title": "本地变更执行协议",
       "summary": "在修改类 Workflow 前加载跨语言的计划落盘、接口文档、读取、询问、范围和验证约束。",
-      "path": "harness/workflows/change-execution-policy/workflow.yaml",
-      "sourceHash": "sha256:db77fe9b0bcba85761fe310a3650bba0ade618f89d95596c5a56eb3ab414b9d8",
+      "path": "harness/workflows/common-change-execution-policy/workflow.yaml",
+      "sourceHash": "sha256:27f6b23d5f34d262eb161c4f76828150095a62c50584ed10fc50f819209002c4",
       "routing": {
         "aliases": [],
         "when": [],
@@ -22,13 +22,41 @@
       "prerequisites": []
     },
     {
-      "name": "node-project-configuration",
+      "name": "node-typescript-development",
+      "namespace": "harness-graph",
+      "version": "0.5.0",
+      "title": "Node.js TypeScript 开发",
+      "summary": "分析、实现、验证、审查并交付当前工作区的 Node.js TypeScript 变更。",
+      "path": "harness/workflows/node-typescript-development/workflow.yaml",
+      "sourceHash": "sha256:ff480d93867900bb4c30df138496f38b2bd1dd689c2ab6d54696cff20f27f70a",
+      "routing": {
+        "aliases": [
+          "nodejs-development",
+          "typescript-development"
+        ],
+        "when": [
+          "新增或修改 Node.js TypeScript 功能",
+          "修复 Node.js TypeScript 缺陷",
+          "重构 Node.js TypeScript 代码"
+        ],
+        "notWhen": [
+          "只解释代码而不修改",
+          "只进行代码审查而不修改"
+        ]
+      },
+      "prerequisites": [
+        "common-change-execution-policy",
+        "node-typescript-standards"
+      ]
+    },
+    {
+      "name": "node-typescript-project-configuration",
       "namespace": "harness-graph",
       "version": "0.2.0",
       "title": "Node.js TypeScript 项目配置",
       "summary": "初始化新的 Node.js TypeScript 项目，或规范化当前已有项目的工程配置。",
-      "path": "harness/workflows/node-project-configuration/workflow.yaml",
-      "sourceHash": "sha256:767cd37e7b6bc5ba0f277662feba17cefd84dddb303c2ea555e45c31578d2a91",
+      "path": "harness/workflows/node-typescript-project-configuration/workflow.yaml",
+      "sourceHash": "sha256:bd62aca9519ff56a72a2f083cced2ce97eefa1c5d8d13d4d3a9367f1fd6789cb",
       "routing": {
         "aliases": [
           "node-project-setup",
@@ -48,35 +76,7 @@
         ]
       },
       "prerequisites": [
-        "change-execution-policy"
-      ]
-    },
-    {
-      "name": "node-typescript-development",
-      "namespace": "harness-graph",
-      "version": "0.5.0",
-      "title": "Node.js TypeScript 开发",
-      "summary": "分析、实现、验证、审查并交付当前工作区的 Node.js TypeScript 变更。",
-      "path": "harness/workflows/node-typescript-development/workflow.yaml",
-      "sourceHash": "sha256:2e7abed3bbe91ffac41f15890934338ca0513fbc5356c9d4b935021e953c3986",
-      "routing": {
-        "aliases": [
-          "nodejs-development",
-          "typescript-development"
-        ],
-        "when": [
-          "新增或修改 Node.js TypeScript 功能",
-          "修复 Node.js TypeScript 缺陷",
-          "重构 Node.js TypeScript 代码"
-        ],
-        "notWhen": [
-          "只解释代码而不修改",
-          "只进行代码审查而不修改"
-        ]
-      },
-      "prerequisites": [
-        "change-execution-policy",
-        "node-typescript-standards"
+        "common-change-execution-policy"
       ]
     },
     {
@@ -86,7 +86,7 @@
       "title": "Node.js TypeScript 开发规范",
       "summary": "在 Node.js TypeScript 开发前将完整规范加载到当前 Agent 上下文。",
       "path": "harness/workflows/node-typescript-standards/workflow.yaml",
-      "sourceHash": "sha256:f480da059f6d8e90e3c2f8fb237c04d54d10615a99778bc6ae8c2b7784bcb205",
+      "sourceHash": "sha256:b83d0f8cb0d0871cb3607910c1617bb88b768344bcb7859471dc7a9248bfaad0",
       "routing": {
         "aliases": [],
         "when": [],

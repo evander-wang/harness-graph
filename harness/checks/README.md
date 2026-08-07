@@ -21,14 +21,14 @@ data: {} # 可选业务数据
 
 ## 通用与领域 Check
 
-同一 Step 可以组合多个 Check。`change-plan-ready` 和 `change-review-result` 维护跨语言的计划、范围和证据要求；领域 Check 只维护项目类型或语言特有规则。
+同一 Step 可以组合多个 Check。`common-change-plan-ready` 和 `common-change-review-result` 维护跨语言的计划、范围和证据要求；领域 Check 只维护项目类型或语言特有规则。
 
 ```yaml
 metadata:
   harness:
     checks:
-      - change-plan-ready
-      - node-project-plan-ready
+      - common-change-plan-ready
+      - node-typescript-project-plan-ready
 ```
 
 禁止在领域 Check 中复制通用规则。Agent 必须同时满足当前 Step 返回的全部 Check，Runtime 仍只接受一个结构化 Step Result。

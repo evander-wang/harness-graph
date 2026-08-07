@@ -12,6 +12,44 @@
 4. 所有 Workflow、Skill、Check 和 Model 都从 Harness Root 读取，目标 Workspace 只允许本地目录，不访问远程执行目标。
 5. 修改类入口 Workflow 通过前置 Workflow 组合通用执行协议和语言 Standards；入口只维护路由与 Transition，不复制前置规则。
 
+## 发布资产命名与职责分工
+
+发布资产使用作用域前缀，保持全局可发现；Workflow 内部 Step 只使用局部简短 ID。现有资产在开发阶段统一采用该规则，不保留旧 ID 兼容层。
+
+| 作用域 | 前缀 | 示例 |
+| --- | --- | --- |
+| Harness 跨语言公共能力 | `common-` | `common-change-execution-policy` |
+| 语言或技术栈能力 | `<language>-` | `node-typescript-standards`、`go-quality-gate` |
+| 公司内部能力 | `<company>-` | `inke-go-standards` |
+| 业务领域能力 | `<domain>-` | `billing-change-review` |
+
+`harness-graph` 和 `workflow-router` 是产品入口保留名。公司或领域资产只有存在真实的规范、CLI、模板或验收需求时才创建；没有真实能力时不创建占位脚手架。
+
+开发规范和公司扩展能力按职责拆分，避免把同一条规则复制到 Workflow、Skill、Check 和文档中。语言标准与公司标准通过前置 Workflow 组合，具体执行和验收仍由各自的 Skill、Check 负责。
+
+| 职责 | 唯一事实源或实现位置 |
+| --- | --- |
+| 语言编码标准 | `harness/workflows/<language>-standards/STANDARDS.md`，例如 `node-typescript-standards/STANDARDS.md` |
+| 加载语言标准的方法 | `harness/skills/<language>-load-standards/SKILL.md` |
+| 修改该语言代码的方法 | `harness/skills/<language>-implement-change/SKILL.md` |
+| 语言质量验收 | `harness/checks/<language>-quality-gate/CHECK.md`，例如执行 `go test`、`go vet` 或 Node.js 项目质量门禁 |
+| 公司内部标准 | 独立的 `harness/workflows/<company>-<language>-standards/`，只维护公司增量规则，不复制通用语言标准 |
+| 公司扩展执行方法 | 只有存在真实公司 CLI、模板或规范时，新增对应 `<company>-*` Skill |
+| 公司扩展结果验收 | 只有存在稳定验收规则时，新增对应 `<company>-*` Check |
+| 开发步骤和返工路径 | `harness/workflows/<language>-<project>-development/workflow.yaml` |
+| 稳定输入输出结构 | `harness/models/*.schema.json` |
+
+修改类入口 Workflow 的前置顺序应保持为：
+
+```text
+common-change-execution-policy
+  → <language>-standards
+  → <company>-<language>-standards（如适用）
+  → <language>-<project>-development
+```
+
+其中，通用执行协议、语言标准和公司标准只通过前置 Workflow 组合；业务入口 Workflow 只声明路由、Step 和 Transition。真实的公司扩展执行放在 Skill，确定性验证放在 Check，输入输出字段放在 Model，不能把这些规则写成 Workflow 中的自由文本或重复复制到多个 Skill。
+
 ## 项目本地安装
 
 `install` 将发布载荷原子安装到业务项目的 `harness-graph/`。Project Root 与默认 Workspace Root 是业务项目根，Harness Root 是 `<project>/harness-graph`，Runtime Root 是 `<harness>/runtime`，State Root 是 `<harness>/.state`。`installation.json` 保存布局、版本和 Runtime 内容哈希，不保存机器绝对路径。
@@ -49,7 +87,7 @@ workflow.yaml ──► compileWorkflow() ──► 标准校验、静态图、M
 
 `workflow:sync` 扫描全部 Workflow，并以全量模式覆盖 Catalog。`workflow:activate` 读取人工维护的 `harness/workflow-activation.yaml`，仅将声明的入口 Workflow 和递归前置依赖写入同一份 Catalog。Catalog 的 `entryWorkflows` 是 Router 的唯一候选范围；其余保留项只用于解析依赖。
 
-`change-execution-policy` 是所有修改类入口共享的非入口前置 Workflow。它通过单个 Skill 加载跨语言执行协议；Node.js、Rust、Go 等语言 Standards 作为并列前置依赖。Catalog 负责校验依赖存在和无环，Router 负责递归去重、顺序执行和恢复时重载上下文。
+`common-change-execution-policy` 是所有修改类入口共享的非入口前置 Workflow。它通过单个 Skill 加载跨语言执行协议；Node.js、Rust、Go 等语言 Standards 作为并列前置依赖。Catalog 负责校验依赖存在和无环，Router 负责递归去重、顺序执行和恢复时重载上下文。
 
 通用计划和 Review Check 可以与领域 Check 组合在同一 Step。通用 Check 检查计划、范围和证据，领域 Check 只检查 Profile、工具链或语言规则；二者仍返回同一套标准状态，不引入新的结果模型。
 

@@ -11,7 +11,7 @@ describe("validateWorkflowData", () => {
     const rootDir = join(import.meta.dirname, "..");
     const workflowPath = join(
       rootDir,
-      "harness/workflows/node-project-configuration/workflow.yaml",
+      "harness/workflows/node-typescript-project-configuration/workflow.yaml",
     );
     const compiled = await compileWorkflow({ rootDir, workflowPath });
     expect(compiled.workflow).not.toBeNull();

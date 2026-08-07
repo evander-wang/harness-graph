@@ -11,6 +11,6 @@ document:
         maxStepAttempts: 1
 
 do:
-  - load-node-typescript-standards:
-      call: load-node-typescript-standards
+  - load-standards:
+      call: node-typescript-load-standards
       then: end

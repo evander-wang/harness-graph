@@ -63,7 +63,10 @@ describe("Workflow execution report", () => {
         name: "demo",
         path: "workflows/demo/workflow.yaml",
         version: "1.2.0",
+        sourceHash: "sha256:abc",
       },
+      workspaceRoot: "/workspace",
+      currentStep: null,
       status: "completed",
       steps: [
         { id: "inspect", attempt: 1, status: "passed" },
@@ -77,7 +80,10 @@ describe("Workflow execution report", () => {
 
     const markdown = renderWorkflowExecutionReport(report);
     expect(markdown).toContain("Workflow: demo (1.2.0)");
+    expect(markdown).toContain("Source Hash: sha256:abc");
+    expect(markdown).toContain("Workspace Root: /workspace");
     expect(markdown).toContain("1. inspect [passed]");
+    expect(markdown).toContain("Evidence: inspected");
     expect(markdown).toContain("2. implement [passed]");
   });
 });

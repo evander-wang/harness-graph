@@ -87,7 +87,7 @@ describe("syncWorkflowCatalog", () => {
     const rootDir = resolve(import.meta.dirname, "..");
     const policy = await compileWorkflow({
       rootDir,
-      workflowPath: join(rootDir, "harness/workflows/change-execution-policy/workflow.yaml"),
+      workflowPath: join(rootDir, "harness/workflows/common-change-execution-policy/workflow.yaml"),
     });
     const development = await compileWorkflow({
       rootDir,
@@ -95,7 +95,7 @@ describe("syncWorkflowCatalog", () => {
     });
     const projectConfiguration = await compileWorkflow({
       rootDir,
-      workflowPath: join(rootDir, "harness/workflows/node-project-configuration/workflow.yaml"),
+      workflowPath: join(rootDir, "harness/workflows/node-typescript-project-configuration/workflow.yaml"),
     });
     const standards = await compileWorkflow({
       rootDir,
@@ -106,28 +106,28 @@ describe("syncWorkflowCatalog", () => {
       (entry) => entry.name === "node-typescript-development",
     );
     const projectConfigurationEntry = catalog.workflows.find(
-      (entry) => entry.name === "node-project-configuration",
+      (entry) => entry.name === "node-typescript-project-configuration",
     );
 
     expect(policy.ok).toBe(true);
     expect(policy.workflow?.do).toEqual([
       {
-        "load-change-execution-policy": {
-          call: "load-change-execution-policy",
+        "load-policy": {
+          call: "common-load-change-execution-policy",
           then: "end",
         },
       },
     ]);
     expect(development.ok).toBe(true);
     expect(development.workflow?.do[0]).toMatchObject({
-      "analyze-change": { call: "analyze-node-change" },
+      "analyze-change": { call: "node-typescript-analyze-change" },
     });
     expect(projectConfiguration.ok).toBe(true);
     expect(projectConfiguration.workflow?.do[0]).toMatchObject({
       "analyze-project": {
         metadata: {
           harness: {
-            checks: ["change-plan-ready", "node-project-plan-ready"],
+            checks: ["common-change-plan-ready", "node-typescript-project-plan-ready"],
           },
         },
       },
@@ -136,7 +136,7 @@ describe("syncWorkflowCatalog", () => {
       "review-project": {
         metadata: {
           harness: {
-            checks: ["change-review-result", "node-project-review-result"],
+            checks: ["common-change-review-result", "node-typescript-project-review-result"],
           },
         },
       },
@@ -144,20 +144,20 @@ describe("syncWorkflowCatalog", () => {
     expect(standards.ok).toBe(true);
     expect(standards.workflow?.do).toHaveLength(1);
     expect(standards.workflow?.do[0]).toMatchObject({
-      "load-node-typescript-standards": {
-        call: "load-node-typescript-standards",
+      "load-standards": {
+        call: "node-typescript-load-standards",
         then: "end",
       },
     });
     expect(developmentEntry?.prerequisites).toEqual([
-      "change-execution-policy",
+      "common-change-execution-policy",
       "node-typescript-standards",
     ]);
     expect(projectConfigurationEntry?.prerequisites).toEqual([
-      "change-execution-policy",
+      "common-change-execution-policy",
     ]);
     const policySkill = await readFile(
-      join(rootDir, "harness/skills/load-change-execution-policy/SKILL.md"),
+      join(rootDir, "harness/skills/common-load-change-execution-policy/SKILL.md"),
       "utf8",
     );
     expect(policySkill).toContain("第一次写入前");
@@ -170,12 +170,12 @@ describe("syncWorkflowCatalog", () => {
     );
     expect(standardGuide).toContain("maxFunctionLines: 80");
     const standardNode = await readFile(
-      join(rootDir, "harness/skills/load-node-typescript-standards/SKILL.md"),
+      join(rootDir, "harness/skills/node-typescript-load-standards/SKILL.md"),
       "utf8",
     );
     expect(standardNode).toContain("STANDARDS.md");
     const qualityGate = await readFile(
-      join(rootDir, "harness/checks/node-quality-gate/CHECK.md"),
+      join(rootDir, "harness/checks/node-typescript-quality-gate/CHECK.md"),
       "utf8",
     );
     expect(qualityGate).toContain(
@@ -217,7 +217,7 @@ describe("syncWorkflowCatalog", () => {
   test("标准 Workflow 的规范正文可被质量门禁定位", async () => {
     const rootDir = resolve(import.meta.dirname, "..");
     const standards = await readFile(
-      join(rootDir, "harness/skills/load-node-typescript-standards/SKILL.md"),
+      join(rootDir, "harness/skills/node-typescript-load-standards/SKILL.md"),
       "utf8",
     );
     expect(standards).toContain("harness/workflows/node-typescript-standards/STANDARDS.md");
@@ -228,7 +228,7 @@ describe("syncWorkflowCatalog", () => {
 
     const catalog = await buildWorkflowCatalog(rootDir);
     const workflow = catalog.workflows.find(
-      (entry) => entry.name === "node-project-configuration",
+      (entry) => entry.name === "node-typescript-project-configuration",
     );
 
     expect(workflow).toMatchObject({

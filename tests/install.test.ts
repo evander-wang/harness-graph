@@ -249,10 +249,10 @@ describe("installHarnessProject", () => {
     });
     await expect(access(join(workspaceRoot, "harness-graph/workflows/node-typescript-development/workflow.yaml"))).resolves.toBeUndefined();
     await expect(
-      access(join(workspaceRoot, "harness-graph/workflows/change-execution-policy/workflow.yaml")),
+      access(join(workspaceRoot, "harness-graph/workflows/common-change-execution-policy/workflow.yaml")),
     ).resolves.toBeUndefined();
     await expect(
-      access(join(workspaceRoot, "harness-graph/skills/load-change-execution-policy/SKILL.md")),
+      access(join(workspaceRoot, "harness-graph/skills/common-load-change-execution-policy/SKILL.md")),
     ).resolves.toBeUndefined();
     const installedCatalog = JSON.parse(
       await readFile(
@@ -260,11 +260,11 @@ describe("installHarnessProject", () => {
         "utf8",
       ),
     ) as { entryWorkflows?: string[]; workflows?: Array<{ name?: string }> };
-    expect(installedCatalog.entryWorkflows).not.toContain("change-execution-policy");
+    expect(installedCatalog.entryWorkflows).not.toContain("common-change-execution-policy");
     expect(installedCatalog.workflows?.map((workflow) => workflow.name)).toContain(
-      "change-execution-policy",
+      "common-change-execution-policy",
     );
-    await expect(access(join(workspaceRoot, "harness-graph/models/node-change-request.schema.json"))).resolves.toBeUndefined();
+    await expect(access(join(workspaceRoot, "harness-graph/models/node-typescript-change-request.schema.json"))).resolves.toBeUndefined();
     await expect(access(join(workspaceRoot, "harness-graph/runtime/dist/cli.js"))).resolves.toBeUndefined();
     await expect(access(join(workspaceRoot, "harness-graph/runtime/package-lock.json"))).resolves.toBeUndefined();
     const runtimePackage = JSON.parse(
@@ -645,7 +645,7 @@ describe("installHarnessProject", () => {
         )
       ).stdout,
     ) as { runId: string; step?: { skillPath?: string } };
-    expect(started.step?.skillPath).toBe("harness-graph/skills/analyze-node-change/SKILL.md");
+    expect(started.step?.skillPath).toBe("harness-graph/skills/node-typescript-analyze-change/SKILL.md");
     await expect(
       access(join(workspaceRoot, "harness-graph/.state/runs", started.runId, "state.json")),
     ).resolves.toBeUndefined();
@@ -749,11 +749,11 @@ describe("installHarnessProject", () => {
       "utf8",
     );
     const qualityGate = await readFile(
-      join(workspaceRoot, "harness-graph/checks/node-quality-gate/CHECK.md"),
+      join(workspaceRoot, "harness-graph/checks/node-typescript-quality-gate/CHECK.md"),
       "utf8",
     );
     const standardsSkill = await readFile(
-      join(workspaceRoot, "harness-graph/skills/load-node-typescript-standards/SKILL.md"),
+      join(workspaceRoot, "harness-graph/skills/node-typescript-load-standards/SKILL.md"),
       "utf8",
     );
 

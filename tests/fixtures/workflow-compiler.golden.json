@@ -1,10 +1,10 @@
 [
   {
-    "path": "harness/workflows/change-execution-policy/workflow.yaml",
+    "path": "harness/workflows/common-change-execution-policy/workflow.yaml",
     "document": {
       "dsl": "1.0.3",
       "namespace": "harness-graph",
-      "name": "change-execution-policy",
+      "name": "common-change-execution-policy",
       "version": "1.1.0"
     },
     "nodes": [
@@ -14,9 +14,9 @@
         "checks": []
       },
       {
-        "id": "load-change-execution-policy",
+        "id": "load-policy",
         "type": "call",
-        "call": "load-change-execution-policy",
+        "call": "common-load-change-execution-policy",
         "checks": []
       },
       {
@@ -27,39 +27,39 @@
     ],
     "transitions": [
       {
-        "from": "load-change-execution-policy",
+        "from": "load-policy",
         "to": "end",
         "label": ""
       },
       {
         "from": "start",
-        "to": "load-change-execution-policy",
+        "to": "load-policy",
         "label": ""
       }
     ]
   },
   {
-    "path": "harness/workflows/node-project-configuration/workflow.yaml",
+    "path": "harness/workflows/node-typescript-project-configuration/workflow.yaml",
     "document": {
       "dsl": "1.0.3",
       "namespace": "harness-graph",
-      "name": "node-project-configuration",
+      "name": "node-typescript-project-configuration",
       "version": "0.2.0"
     },
     "nodes": [
       {
         "id": "analyze-project",
         "type": "call",
-        "call": "analyze-node-project",
+        "call": "node-typescript-analyze-project",
         "checks": [
-          "change-plan-ready",
-          "node-project-plan-ready"
+          "common-change-plan-ready",
+          "node-typescript-project-plan-ready"
         ]
       },
       {
         "id": "configure-project",
         "type": "call",
-        "call": "configure-node-project",
+        "call": "node-typescript-configure-project",
         "checks": []
       },
       {
@@ -80,7 +80,7 @@
       {
         "id": "deliver-project",
         "type": "call",
-        "call": "deliver-node-project-configuration",
+        "call": "node-typescript-deliver-project-configuration",
         "checks": []
       },
       {
@@ -91,10 +91,10 @@
       {
         "id": "review-project",
         "type": "call",
-        "call": "review-node-project-configuration",
+        "call": "node-typescript-review-project-configuration",
         "checks": [
-          "change-review-result",
-          "node-project-review-result"
+          "common-change-review-result",
+          "node-typescript-project-review-result"
         ]
       },
       {
@@ -105,9 +105,9 @@
       {
         "id": "verify-project",
         "type": "call",
-        "call": "verify-node-project",
+        "call": "node-typescript-verify-project",
         "checks": [
-          "node-project-quality-gate"
+          "node-typescript-project-quality-gate"
         ]
       }
     ],
@@ -186,9 +186,9 @@
       {
         "id": "analyze-change",
         "type": "call",
-        "call": "analyze-node-change",
+        "call": "node-typescript-analyze-change",
         "checks": [
-          "change-plan-ready"
+          "common-change-plan-ready"
         ]
       },
       {
@@ -209,7 +209,7 @@
       {
         "id": "deliver-result",
         "type": "call",
-        "call": "deliver-node-change",
+        "call": "node-typescript-deliver-change",
         "checks": []
       },
       {
@@ -220,15 +220,15 @@
       {
         "id": "implement-change",
         "type": "call",
-        "call": "implement-node-change",
+        "call": "node-typescript-implement-change",
         "checks": []
       },
       {
         "id": "review-change",
         "type": "call",
-        "call": "review-node-change",
+        "call": "node-typescript-review-change",
         "checks": [
-          "change-review-result"
+          "common-change-review-result"
         ]
       },
       {
@@ -239,9 +239,9 @@
       {
         "id": "verify-change",
         "type": "call",
-        "call": "verify-node-change",
+        "call": "node-typescript-verify-change",
         "checks": [
-          "node-quality-gate"
+          "node-typescript-quality-gate"
         ]
       }
     ],
@@ -323,9 +323,9 @@
         "checks": []
       },
       {
-        "id": "load-node-typescript-standards",
+        "id": "load-standards",
         "type": "call",
-        "call": "load-node-typescript-standards",
+        "call": "node-typescript-load-standards",
         "checks": []
       },
       {
@@ -336,13 +336,13 @@
     ],
     "transitions": [
       {
-        "from": "load-node-typescript-standards",
+        "from": "load-standards",
         "to": "end",
         "label": ""
       },
       {
         "from": "start",
-        "to": "load-node-typescript-standards",
+        "to": "load-standards",
         "label": ""
       }
     ]

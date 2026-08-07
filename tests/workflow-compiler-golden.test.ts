@@ -8,8 +8,8 @@ import { expectGolden } from "./helpers/golden.js";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const workflowPaths = [
-  "harness/workflows/change-execution-policy/workflow.yaml",
-  "harness/workflows/node-project-configuration/workflow.yaml",
+  "harness/workflows/common-change-execution-policy/workflow.yaml",
+  "harness/workflows/node-typescript-project-configuration/workflow.yaml",
   "harness/workflows/node-typescript-development/workflow.yaml",
   "harness/workflows/node-typescript-standards/workflow.yaml",
 ] as const;

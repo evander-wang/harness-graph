@@ -24,12 +24,12 @@ Workflow 完成后，Router 可询问用户是否通过项目本地 `report <run
 
 ## 通用变更执行协议
 
-`load-change-execution-policy` 是修改类 Workflow 的通用执行协议唯一事实源。入口 Workflow 通过 `change-execution-policy` 前置 Workflow 加载它；语言和领域 Skill 只能增加具体约束，不能复制或削弱通用协议。
+`common-load-change-execution-policy` 是修改类 Workflow 的通用执行协议唯一事实源。入口 Workflow 通过 `common-change-execution-policy` 前置 Workflow 加载它；语言和领域 Skill 只能增加具体约束，不能复制或削弱通用协议。
 
 Router 只实现协议要求的暂停和恢复方式。当前 Step 缺少可由用户补充的决定时，不写 Step Result、不调用 `continue`；用户回答后继续同一个 Run。
 
 ## Node.js 项目配置
 
-`analyze-node-project`、`configure-node-project`、`verify-node-project`、`review-node-project-configuration` 和 `deliver-node-project-configuration` 共同完成 Input 中 `projectRoot` 指向的本地工程初始化或规范化。新项目使用 `configure-node-project/BASELINE.md` 的版本化默认值。
+`node-typescript-analyze-project`、`node-typescript-configure-project`、`node-typescript-verify-project`、`node-typescript-review-project-configuration` 和 `node-typescript-deliver-project-configuration` 共同完成 Input 中 `projectRoot` 指向的本地工程初始化或规范化。新项目使用 `node-typescript-configure-project/BASELINE.md` 的版本化默认值。
 
 新项目默认 npm；已有项目保留已确认的 npm、Yarn 或 pnpm。Skill 不自行删除冲突 Lockfile，不迁移模块系统或测试框架，也不在证据和结果中记录 Secret 值。

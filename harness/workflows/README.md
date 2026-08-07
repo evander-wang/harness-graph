@@ -40,18 +40,18 @@ metadata:
 metadata:
   harness:
     prerequisites:
-      - change-execution-policy
+      - common-change-execution-policy
       - node-typescript-standards
 ```
 
-`change-execution-policy` 是非入口前置 Workflow，负责加载跨语言修改协议；语言 Standards 只维护该语言的开发规范。入口 Workflow 负责路由和 Transition，不复制两类前置规则。
+`common-change-execution-policy` 是非入口前置 Workflow，负责加载跨语言修改协议；语言 Standards 只维护该语言的开发规范。入口 Workflow 负责路由和 Transition，不复制两类前置规则。
 
 参考：
 
-- `change-execution-policy/workflow.yaml`：所有修改类 Workflow 共享的执行协议；
+- `common-change-execution-policy/workflow.yaml`：所有修改类 Workflow 共享的执行协议；
 - `node-typescript-standards/workflow.yaml`：Node.js TypeScript 开发的单节点前置规范加载流程；
 - `node-typescript-development/workflow.yaml`：已有工程中的业务代码变更；
-- `node-project-configuration/workflow.yaml`：初始化或规范化当前 Node.js TypeScript 项目。
+- `node-typescript-project-configuration/workflow.yaml`：初始化或规范化当前 Node.js TypeScript 项目。
 
 项目配置 Workflow 自动判断新项目或已有项目，但不为两者维护两套流程。Input 的 `projectRoot` 指定本地目标目录并由 Runtime 固化；包管理器冲突需要返回 `blocked`，禁止自动删除 Lockfile。
 

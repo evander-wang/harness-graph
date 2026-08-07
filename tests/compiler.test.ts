@@ -41,7 +41,7 @@ describe("compileWorkflow", () => {
     const rootDir = resolve(import.meta.dirname, "..");
     const workflowPath = join(
       rootDir,
-      "harness/workflows/node-project-configuration/workflow.yaml",
+      "harness/workflows/node-typescript-project-configuration/workflow.yaml",
     );
 
     const result = await compileWorkflow({ rootDir, workflowPath });

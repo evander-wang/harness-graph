@@ -1,5 +1,6 @@
 const state = {
   catalog: null,
+  runs: [],
   detail: null,
   workflow: null,
   filter: "all",
@@ -33,6 +34,7 @@ const elements = {
   inspectorBody: document.querySelector("#inspector-body"),
   sidebar: document.querySelector("#sidebar"),
   inspector: document.querySelector("#inspector"),
+  runToggle: document.querySelector("#run-toggle"),
   scrim: document.querySelector("#mobile-scrim"),
   fileModal: document.querySelector("#file-modal"),
   fileModalTitle: document.querySelector("#file-modal-title"),
@@ -67,6 +69,14 @@ function statusLabel(status) {
   if (status === "passed") return "已校验";
   if (status === "needs_changes") return "需关注";
   return "阻塞";
+}
+
+function runStatusLabel(status) {
+  return { running: "运行中", completed: "已完成", cancelled: "已取消", failed: "失败", blocked: "等待决定" }[status] ?? status;
+}
+
+function runStatusClass(status) {
+  return status === "completed" ? "status-passed" : status === "blocked" || status === "failed" ? "status-needs_changes" : "status-running";
 }
 
 function fileIcon(kind) {
@@ -288,6 +298,17 @@ function filesForStep(detail, step) {
   return detail.files.filter((file) => paths.has(file.path));
 }
 
+function renderRunObserver() {
+  const runs = state.runs.filter((run) => run.workflow?.name === state.workflow?.name);
+  const latest = runs[0];
+  if (!latest) {
+    return `<section class="run-observer-block"><div class="section-heading"><h3>运行观察</h3><span>0</span></div><p class="observer-empty">当前 Workflow 暂无 Runtime Run</p></section>`;
+  }
+  const stepRows = latest.steps.slice(-5).map((step) => `<div class="run-step-row"><span class="run-step-status ${runStatusClass(step.status)}"></span><span class="mono">${escapeHtml(step.id)}</span><span>${runStatusLabel(step.status)} · ${step.attempt} 次</span></div>`).join("");
+  const evidence = latest.steps.flatMap((step) => step.evidence.map((item) => `${step.id}: ${item}`)).slice(-3);
+  return `<section class="run-observer-block"><div class="section-heading"><h3>运行观察</h3><span>${runs.length} 个 Run</span></div><div class="run-summary-row"><span class="status-text ${runStatusClass(latest.status)}">${runStatusLabel(latest.status)}</span><span class="mono observer-run-id">${escapeHtml(latest.runId)}</span></div><dl class="detail-list run-detail-list"><div><dt>当前 Step</dt><dd class="mono">${escapeHtml(latest.currentStep?.id ?? "无")}</dd></div><div><dt>版本 / 源哈希</dt><dd class="mono">v${escapeHtml(latest.workflow.version)} · ${escapeHtml(latest.workflow.sourceHash)}</dd></div><div><dt>工作区</dt><dd class="mono">${escapeHtml(latest.workspaceRoot)}</dd></div>${latest.blockedReason ? `<div><dt>阻塞原因</dt><dd>${escapeHtml(latest.blockedReason)}</dd></div>` : ""}</dl><div class="run-step-list">${stepRows || '<span class="observer-empty">尚未产生 Step 记录</span>'}</div>${evidence.length ? `<div class="run-evidence"><strong>最近证据</strong>${evidence.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}</section>`;
+}
+
 function renderInspector() {
   const detail = state.detail;
   if (!detail) {
@@ -302,6 +323,7 @@ function renderInspector() {
   const outgoing = step ? graphEdges.filter((edge) => edge.sourceId === step.nodeId) : [];
   const files = step ? filesForStep(detail, step) : detail.files;
   elements.inspectorBody.innerHTML = `
+    ${renderRunObserver()}
     <section class="summary-block">
       <div class="summary-title-row"><span class="type-chip ${step ? "type-skill" : "type-workflow"}">${step ? typeLabel(step.kind) : "Workflow"}</span><span class="status-text status-${status}">${statusLabel(status)}</span></div>
       <h3>${escapeHtml(step ? step.id : detail.catalog.title)}</h3>
@@ -374,13 +396,28 @@ async function selectWorkflow(name) {
 }
 
 async function loadCatalog() {
+  if (window.location.protocol === "file:") {
+    throw new Error("请通过 npm run workflow:ui 启动本地服务后访问 http://127.0.0.1:4173，不能直接打开 index.html。");
+  }
   const response = await fetch("/api/workflows");
   if (!response.ok) throw new Error("无法读取 Workflow Catalog");
   state.catalog = await response.json();
+  await loadRuns();
   renderWorkflowList();
   const hashName = new URLSearchParams(window.location.hash.slice(1)).get("workflow");
   const selected = state.catalog.workflows.find((workflow) => workflow.name === hashName) ?? state.catalog.workflows.find((workflow) => workflow.entry) ?? state.catalog.workflows[0];
   if (selected) await selectWorkflow(selected.name);
+}
+
+async function loadRuns() {
+  try {
+    const response = await fetch("/api/runs");
+    if (!response.ok) throw new Error("无法读取 Runtime Run");
+    const body = await response.json();
+    state.runs = Array.isArray(body.runs) ? body.runs : [];
+  } catch {
+    state.runs = [];
+  }
 }
 
 function changeZoom(delta, anchor) {
@@ -516,6 +553,7 @@ function bindEvents() {
     if (file) await navigator.clipboard?.writeText(file.content);
   });
   document.querySelector("#refresh-button").addEventListener("click", () => loadCatalog().catch(showFatalError));
+  elements.runToggle?.addEventListener("click", () => { setMobilePanel("inspector"); elements.inspectorBody.scrollTo({ top: 0, behavior: "smooth" }); });
   document.querySelector("#nav-toggle").addEventListener("click", () => setMobilePanel("sidebar"));
   document.querySelector("#inspector-toggle").addEventListener("click", () => setMobilePanel("inspector"));
   document.querySelector("#inspector-close").addEventListener("click", () => setMobilePanel(null));

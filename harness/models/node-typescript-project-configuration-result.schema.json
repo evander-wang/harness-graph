@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness://models/node-typescript-project-configuration-result.schema.json",
+  "title": "NodeProjectConfigurationResult",
+  "type": "object",
+  "required": [
+    "status",
+    "profile",
+    "changedFiles",
+    "verification",
+    "preservedDecisions",
+    "risks"
+  ],
+  "properties": {
+    "status": {
+      "const": "done"
+    },
+    "profile": {
+      "$ref": "harness://models/node-typescript-project-profile.schema.json"
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "verification": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "preservedDecisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false
+}

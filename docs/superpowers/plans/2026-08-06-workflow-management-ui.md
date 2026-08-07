@@ -54,10 +54,10 @@
 - `npm run project:check`
 - `npm run doctor`
 - `npm run workflow:activate`
-- `npm run workflow:validate -- harness/workflows/change-execution-policy/workflow.yaml`
+- `npm run workflow:validate -- harness/workflows/common-change-execution-policy/workflow.yaml`
 - `npm run workflow:validate -- harness/workflows/node-typescript-standards/workflow.yaml`
 - `npm run workflow:validate -- harness/workflows/node-typescript-development/workflow.yaml`
-- `npm run workflow:validate -- harness/workflows/node-project-configuration/workflow.yaml`
+- `npm run workflow:validate -- harness/workflows/node-typescript-project-configuration/workflow.yaml`
 - 启动 `npm run workflow:ui` 后请求 `/api/workflows` 和 `/api/workflows/:name`，确认返回真实 Workflow、图数据和关联文件内容。
 
 ## 接口与文档影响

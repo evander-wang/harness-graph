@@ -21,21 +21,21 @@ document:
       execution:
         maxStepAttempts: 3
       prerequisites:
-        - change-execution-policy
+        - common-change-execution-policy
         - node-typescript-standards
 
 input:
   schema:
     resource:
-      endpoint: harness://models/node-change-request.schema.json
+      endpoint: harness://models/node-typescript-change-request.schema.json
 
 do:
   - analyze-change:
-      call: analyze-node-change
+      call: node-typescript-analyze-change
       metadata:
         harness:
           checks:
-            - change-plan-ready
+            - common-change-plan-ready
 
   - decide-plan:
       switch:
@@ -46,14 +46,14 @@ do:
             then: analyze-change
 
   - implement-change:
-      call: implement-node-change
+      call: node-typescript-implement-change
 
   - verify-change:
-      call: verify-node-change
+      call: node-typescript-verify-change
       metadata:
         harness:
           checks:
-            - node-quality-gate
+            - node-typescript-quality-gate
 
   - decide-quality:
       switch:
@@ -64,11 +64,11 @@ do:
             then: implement-change
 
   - review-change:
-      call: review-node-change
+      call: node-typescript-review-change
       metadata:
         harness:
           checks:
-            - change-review-result
+            - common-change-review-result
 
   - decide-review:
       switch:
@@ -79,10 +79,10 @@ do:
             then: implement-change
 
   - deliver-result:
-      call: deliver-node-change
+      call: node-typescript-deliver-change
       then: end
 
 output:
   schema:
     resource:
-      endpoint: harness://models/node-change-result.schema.json
+      endpoint: harness://models/node-typescript-change-result.schema.json

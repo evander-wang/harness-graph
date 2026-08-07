@@ -62,16 +62,16 @@
 
 **Files:**
 - Create: `skills/workflow-router/SKILL.md`
-- Create: `skills/analyze-node-change/SKILL.md`
-- Create: `skills/implement-node-change/SKILL.md`
-- Create: `skills/verify-node-change/SKILL.md`
-- Create: `skills/review-node-change/SKILL.md`
-- Create: `skills/deliver-node-change/SKILL.md`
-- Create: `harness/checks/change-plan-ready/CHECK.md`
-- Create: `harness/checks/node-quality-gate/CHECK.md`
-- Create: `harness/checks/change-review-result/CHECK.md`
-- Create: `harness/models/node-change-request.schema.json`
-- Create: `harness/models/node-change-result.schema.json`
+- Create: `skills/node-typescript-analyze-change/SKILL.md`
+- Create: `skills/node-typescript-implement-change/SKILL.md`
+- Create: `skills/node-typescript-verify-change/SKILL.md`
+- Create: `skills/node-typescript-review-change/SKILL.md`
+- Create: `skills/node-typescript-deliver-change/SKILL.md`
+- Create: `harness/checks/common-change-plan-ready/CHECK.md`
+- Create: `harness/checks/node-typescript-quality-gate/CHECK.md`
+- Create: `harness/checks/common-change-review-result/CHECK.md`
+- Create: `harness/models/node-typescript-change-request.schema.json`
+- Create: `harness/models/node-typescript-change-result.schema.json`
 - Create: `harness/workflows/node-typescript-development/workflow.yaml`
 
 - [ ] Router 只读取 Catalog；明确匹配一个 Workflow 后调用 Runtime，多候选或无候选时停止。

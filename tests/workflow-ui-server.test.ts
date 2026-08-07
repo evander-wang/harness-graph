@@ -55,13 +55,13 @@ describe("Workflow UI server", () => {
     expect(response.status).toBe(200);
     expect(entryWorkflows).toEqual([
       "node-typescript-development",
-      "node-project-configuration",
+      "node-typescript-project-configuration",
     ]);
     expect(Array.isArray(workflows)).toBe(true);
     expect(workflows).toHaveLength(4);
     expect(workflows).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "node-typescript-development", entry: true }),
-      expect.objectContaining({ name: "change-execution-policy", entry: false }),
+      expect.objectContaining({ name: "common-change-execution-policy", entry: false }),
     ]));
   });
 
@@ -81,12 +81,12 @@ describe("Workflow UI server", () => {
     expect(expandedGraph.nodes).toHaveLength(16);
     expect(expandedSteps).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: "load-change-execution-policy",
-        workflowName: "change-execution-policy",
+        id: "load-policy",
+        workflowName: "common-change-execution-policy",
         kind: "skill",
       }),
       expect.objectContaining({
-        id: "load-node-typescript-standards",
+        id: "load-standards",
         workflowName: "node-typescript-standards",
       }),
     ]));
@@ -94,8 +94,8 @@ describe("Workflow UI server", () => {
       expect.objectContaining({
         id: "analyze-change",
         nodeId: "/do/0/analyze-change",
-        call: "analyze-node-change",
-        checks: ["change-plan-ready"],
+        call: "node-typescript-analyze-change",
+        checks: ["common-change-plan-ready"],
       }),
       expect.objectContaining({ id: "decide-plan", kind: "switch" }),
     ]));
@@ -105,23 +105,23 @@ describe("Workflow UI server", () => {
         kind: "workflow",
       }),
       expect.objectContaining({
-        path: "harness/skills/analyze-node-change/SKILL.md",
+        path: "harness/skills/node-typescript-analyze-change/SKILL.md",
         kind: "skill",
       }),
       expect.objectContaining({
-        path: "harness/checks/change-plan-ready/CHECK.md",
+        path: "harness/checks/common-change-plan-ready/CHECK.md",
         kind: "check",
       }),
       expect.objectContaining({
-        path: "harness/models/node-change-request.schema.json",
+        path: "harness/models/node-typescript-change-request.schema.json",
         kind: "model",
       }),
       expect.objectContaining({
-        path: "harness/workflows/change-execution-policy/workflow.yaml",
+        path: "harness/workflows/common-change-execution-policy/workflow.yaml",
         kind: "workflow",
       }),
       expect.objectContaining({
-        path: "harness/skills/load-node-typescript-standards/SKILL.md",
+        path: "harness/skills/node-typescript-load-standards/SKILL.md",
         kind: "skill",
       }),
     ]));
@@ -134,5 +134,13 @@ describe("Workflow UI server", () => {
     expect(response.status).toBe(404);
     expect(typeof body.error).toBe("string");
     expect(body.error).not.toContain("package.json");
+  });
+
+  it("returns Runtime reports from the local state source", async () => {
+    const response = await fetch(`${baseUrl}/api/runs`);
+    const body = asRecord(await response.json());
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(body.runs)).toBe(true);
   });
 });

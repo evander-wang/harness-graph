@@ -51,7 +51,7 @@ business-project/
     │   │   └── STANDARDS.md
     │   ├── node-typescript-development/
     │   │   └── workflow.yaml
-    │   └── node-project-configuration/
+    │   └── node-typescript-project-configuration/
     │       └── workflow.yaml
     │
     ├── models/

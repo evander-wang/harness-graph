@@ -28,7 +28,7 @@
 - `src/workflow/compiler.ts`
 - `package.json`
 - `README.md`、`keywords.md`、`docs/design.md`、`CONTRIBUTING.md`、`AGENTS.md`
-- `docs/superpowers/specs/2026-07-21-node-project-configuration-design.md`
+- `docs/superpowers/specs/2026-07-21-node-typescript-project-configuration-design.md`
 - `docs/superpowers/specs/2026-08-03-project-local-installation-design.md`
 - 相关 `tests/*.test.ts`
 

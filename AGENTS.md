@@ -53,8 +53,9 @@ Mermaid 和其他生成内容只用于展示，禁止手工维护为第二份流
 - `document.metadata.harness.routing` 声明 Workflow 的 Alias、适用场景和排除场景。
 - `document.metadata.harness.execution.maxStepAttempts` 如存在，必须是正整数。
 - `switch.when` 当前只允许比较 `.status` 与 `passed`、`needs_changes` 或 `blocked`。
-- 会修改代码、配置或其他项目文件的入口 Workflow 必须将 `change-execution-policy` 声明为前置 Workflow；语言 Standards 作为独立前置 Workflow 组合，禁止复制通用执行协议。
+- 会修改代码、配置或其他项目文件的入口 Workflow 必须将 `common-change-execution-policy` 声明为前置 Workflow；语言 Standards 作为独立前置 Workflow 组合，禁止复制通用执行协议。
 - 同一 Step 可以组合通用 Check 和领域 Check；领域 Check 只维护领域验收规则，不得复制通用计划、范围和证据规则。
+- 全局 Workflow、Skill、Check 和 Model 使用作用域前缀；Workflow 内部 Step 使用局部简短 ID；`harness-graph` 和 `workflow-router` 是保留入口名。
 
 ## 本地执行
 
@@ -108,14 +109,14 @@ npm run check:all
 npm run project:check
 npm run doctor
 npm run workflow:activate
-npm run workflow:validate -- harness/workflows/change-execution-policy/workflow.yaml
+npm run workflow:validate -- harness/workflows/common-change-execution-policy/workflow.yaml
 npm run workflow:validate -- harness/workflows/node-typescript-standards/workflow.yaml
 npm run workflow:validate -- harness/workflows/node-typescript-development/workflow.yaml
-npm run workflow:validate -- harness/workflows/node-project-configuration/workflow.yaml
-npm run workflow:image -- harness/workflows/change-execution-policy/workflow.yaml
+npm run workflow:validate -- harness/workflows/node-typescript-project-configuration/workflow.yaml
+npm run workflow:image -- harness/workflows/common-change-execution-policy/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-standards/workflow.yaml
 npm run workflow:image -- harness/workflows/node-typescript-development/workflow.yaml
-npm run workflow:image -- harness/workflows/node-project-configuration/workflow.yaml
+npm run workflow:image -- harness/workflows/node-typescript-project-configuration/workflow.yaml
 ```
 
 ## 安全和 Git
