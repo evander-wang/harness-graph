@@ -26,6 +26,15 @@ import { hashRuntimeArtifacts } from "../src/installation/runtime.js";
 
 const sourceRoot = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
+const sourcePackage = JSON.parse(
+  await readFile(join(sourceRoot, "package.json"), "utf8"),
+) as { version?: unknown };
+
+if (typeof sourcePackage.version !== "string") {
+  throw new Error("根 package.json 缺少有效的 version");
+}
+
+const sourceVersion = sourcePackage.version;
 
 function installForTest(projectRoot: string) {
   return installHarnessProject({
@@ -318,7 +327,7 @@ describe("installHarnessProject", () => {
     expect(installedManifest).toMatchObject({
       schemaVersion: 1,
       layoutVersion: 2,
-      harnessVersion: "0.1.0",
+      harnessVersion: sourceVersion,
       managedEntries: {
         agents: true,
         claude: true,
@@ -327,7 +336,7 @@ describe("installHarnessProject", () => {
         claudeSkill: true,
       },
     });
-    expect(installedManifest.runtime?.version).toBe("0.1.0");
+    expect(installedManifest.runtime?.version).toBe(sourceVersion);
     expect(installedManifest.runtime?.hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(installedManifest.runtime?.stateSchemaVersion).toBe(1);
     expect(resolveHarnessPaths({ projectRoot: workspaceRoot })).toMatchObject({
@@ -404,7 +413,7 @@ describe("installHarnessProject", () => {
         claudeSkill: true,
       },
     });
-    expect(migratedManifest.runtime?.version).toBe("0.1.0");
+    expect(migratedManifest.runtime?.version).toBe(sourceVersion);
     expect(migratedManifest.runtime?.hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(migratedManifest.runtime?.stateSchemaVersion).toBe(1);
   });
@@ -453,7 +462,7 @@ describe("installHarnessProject", () => {
     const upgradedManifest = JSON.parse(await readFile(installationPath, "utf8")) as {
       runtime?: { version?: string; hash?: string; stateSchemaVersion?: number };
     };
-    expect(upgradedManifest.runtime?.version).toBe("0.1.0");
+    expect(upgradedManifest.runtime?.version).toBe(sourceVersion);
     expect(upgradedManifest.runtime?.hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(upgradedManifest.runtime?.stateSchemaVersion).toBe(1);
   });
