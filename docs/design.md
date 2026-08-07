@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | Harness 跨语言公共能力 | `common-` | `common-change-execution-policy` |
 | 语言或技术栈能力 | `<language>-` | `node-typescript-standards`、`go-quality-gate` |
-| 公司内部能力 | `<company>-` | `inke-go-standards` |
+| 公司内部能力 | `<company>-` | `<company>-go-standards` |
 | 业务领域能力 | `<domain>-` | `billing-change-review` |
 
 `harness-graph` 和 `workflow-router` 是产品入口保留名。公司或领域资产只有存在真实的规范、CLI、模板或验收需求时才创建；没有真实能力时不创建占位脚手架。
