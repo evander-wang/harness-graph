@@ -1,6 +1,6 @@
 {
   "name": "@jichaowang/harness-graph",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "面向本地编码 Agent 的声明式 Workflow 编译与校验工具。",
   "license": "MIT",
