@@ -1,42 +1,59 @@
-name: Publish npm package
+name: Release
 
 on:
-  release:
-    types:
-      - published
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
+    name: Publish npm package
     runs-on: ubuntu-latest
-    environment: npm
-    permissions:
-      contents: read
-      id-token: write
+    environment:
+      name: npm
     steps:
-      - name: Checkout release tag
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.release.tag_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+          cache: npm
 
-      - name: Use npm with Trusted Publishing support
+      - name: Use npm with trusted publishing support
         run: npm install --global npm@11.19.0
 
-      - name: Verify release tag matches package version
+      - name: Verify release tag
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: node -e "const version = require('./package.json').version; if (process.env.RELEASE_TAG !== 'v' + version) { throw new Error('Release tag must equal v' + version); }"
+          TAG_VERSION: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const tagVersion = process.env.TAG_VERSION.replace(/^v/u, '');
+          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          if (!/^\d+\.\d+\.\d+$/u.test(tagVersion)) {
+            throw new Error(`Tag 必须是 vX.Y.Z：${process.env.TAG_VERSION}`);
+          }
+          if (packageJson.version !== tagVersion || packageLock.version !== tagVersion || packageLock.packages?.['']?.version !== tagVersion) {
+            throw new Error(`Tag ${tagVersion} 与 package.json/package-lock.json 版本不一致。`);
+          }
+          NODE
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --registry=https://registry.npmjs.org
 
-      - name: Publish with npm Trusted Publishing
-        run: npm publish
+      - name: Run project checks
+        run: npm run check:all
+
+      - name: Run project check
+        run: npm run project:check
+
+      - name: Publish with npm provenance
+        run: npm publish --access public --provenance --registry=https://registry.npmjs.org

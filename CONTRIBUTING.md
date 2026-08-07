@@ -112,6 +112,14 @@ git diff -- tests/fixtures
 
 ## npm 发布
 
-公开包名是 `@jichaowang/harness-graph`。发布前更新 `package.json` 和 `package-lock.json` 中的语义化版本，确保 Git Tag `v<version>` 与包版本完全一致，并发布对应 GitHub Release。`.github/workflows/release.yml` 会从该 Tag 运行完整门禁并通过 npm Trusted Publishing 发布；普通 Branch 和 `main` Push 不会发布。
+公开包名是 `@jichaowang/harness-graph`。发布前更新 `package.json` 和 `package-lock.json` 中的语义化版本，确保 Git Tag `v<version>` 与包版本完全一致。`.github/workflows/release.yml` 会从该 Tag 运行完整门禁并通过 npm Trusted Publishing 发布；普通 Branch 和 `main` Push 不会发布，也不要求创建 GitHub Release。
 
-首次发布是一次性引导步骤：从通过 CI 的 `v0.1.0` Tag 本地执行 `npm publish --access public`，但不要为该 Tag 发布 GitHub Release，避免 Release Workflow 重复发布同一版本。包创建后，在 npm Package Settings 中绑定 GitHub 仓库 `evander-wang/harness-graph`、Workflow `release.yml` 和 Environment `npm`。从下一个版本开始只发布 GitHub Release，由受保护 Environment 审批后通过 OIDC 发布并自动生成 provenance；禁止把长期 npm Publish Token 写入仓库。
+当前 `v0.1.0` 已完成首次手工发布。包创建后，在 npm Package Settings → Trusted Publishers 中绑定 GitHub Actions：Owner `evander-wang`、Repository `harness-graph`、Workflow `release.yml`、Environment `npm`。从下一个版本开始只推送版本 Tag，由受保护 Environment 审批后通过 OIDC 发布并自动生成 provenance；禁止把长期 npm Publish Token 写入仓库。
+
+发布新版本时，先在 `package.json` 和 `package-lock.json` 更新同一个语义化版本，再提交并打 Tag：
+
+```bash
+npm run release:patch
+```
+
+需要次版本或主版本时使用 `npm run release:minor` 或 `npm run release:major`。这些命令会校验当前分支是 `main`、确认工作区干净，升级版本并推送 `main` 与对应 Tag。`release.yml` 只响应 `vX.Y.Z` Tag，并在发布前检查 Tag、`package.json` 和 `package-lock.json` 完全一致。Tag 推送后，GitHub Actions 会执行完整门禁、`project:check` 和 npm provenance 发布。普通 Branch Push 不会发布。

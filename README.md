@@ -331,6 +331,16 @@ npm run workflow:image -- harness/workflows/node-typescript-project-configuratio
 
 `npm run package:check` 会构建真实 npm tarball，检查发布边界，并通过 `npm exec` 安装到临时项目后执行 `preflight`。核心 Workflow 或 Runtime 行为有意变化时，先审阅实现 Diff，再执行 `UPDATE_GOLDEN=1 npm test` 更新 Golden。
 
+### 发布 npm 包
+
+公开包名是 `@jichaowang/harness-graph`。发布版本时，先让 `package.json` 和 `package-lock.json` 使用同一个语义化版本，然后推送对应的 `v<version>` Tag：
+
+```bash
+npm run release:patch
+```
+
+需要次版本或主版本时使用 `npm run release:minor` 或 `npm run release:major`。这些命令会校验当前分支是 `main`、确认工作区干净，升级 `package.json`/`package-lock.json`，创建版本提交和 Tag，推送 `main` 与 Tag。`.github/workflows/release.yml` 只响应 `vX.Y.Z` Tag，随后通过 npm Trusted Publishing 的 OIDC 发布带 provenance 的 public 包。首次手工发布创建包后，需要在 npm Package Settings → Trusted Publishers 绑定 GitHub Actions 的 `evander-wang/harness-graph`、`release.yml` 和 `npm` Environment；不要把长期 npm Token 写入仓库。
+
 可运行示例包括 [common-change-execution-policy/workflow.yaml](./harness/workflows/common-change-execution-policy/workflow.yaml)、[node-typescript-standards/workflow.yaml](./harness/workflows/node-typescript-standards/workflow.yaml)、[node-typescript-development/workflow.yaml](./harness/workflows/node-typescript-development/workflow.yaml) 和 [node-typescript-project-configuration/workflow.yaml](./harness/workflows/node-typescript-project-configuration/workflow.yaml)。前两个是非入口前置 Workflow，不能由用户直接路由。
 
 ## Workflow 激活范围
