@@ -1,3 +1,5 @@
+import { filesForStep } from "./file-paths.js";
+
 const state = {
   catalog: null,
   runs: [],
@@ -286,16 +288,6 @@ function renderDiagnostic() {
   elements.diagnosticBanner.innerHTML = diagnostics.length
     ? `<span class="diagnostic-icon">!</span><strong>${diagnostics.length} 个编译诊断</strong><span>${escapeHtml(diagnostics[0].message)}</span>`
     : "";
-}
-
-function filesForStep(detail, step) {
-  const workflowPath = step.workflowName === detail.catalog.name
-    ? detail.catalog.path
-    : `harness/workflows/${step.workflowName}/workflow.yaml`;
-  const paths = new Set([workflowPath]);
-  if (step.call) paths.add(`harness/skills/${step.call}/SKILL.md`);
-  step.checks.forEach((check) => paths.add(`harness/checks/${check}/CHECK.md`));
-  return detail.files.filter((file) => paths.has(file.path));
 }
 
 function renderRunObserver() {
