@@ -7,7 +7,7 @@ Harness Graph 为本地编码 Agent 提供可执行的 Workflow。它会根据�
 要求 Node.js 22 或更高版本。在业务项目根目录执行：
 
 ```bash
-npx --yes @jichaowang/harness-graph@0.1.0 install
+npx --yes @jichaowang/harness-graph@latest install
 ```
 
 安装完成后，项目中会出现 `harness-graph/`，其中保存 Workflow、Skill、Check 和本地 Runtime。安装器也会配置 Codex、Claude Code 等 Agent 的项目入口。
