@@ -768,6 +768,9 @@ describe("installHarnessProject", () => {
 
     expect(router).toContain("./harness-graph/bin/harness-graph preflight");
     expect(router).toContain("./harness-graph/bin/harness-graph start");
+    expect(router).toContain("Catalog 中所选 Workflow 的 `path` 字段原样");
+    expect(router).toContain("不得添加 `harness-graph/` 前缀");
+    expect(router).toContain("`evidence` 必须是至少包含一个非空字符串的数组");
     expect(router).toContain("harness-graph/.state/tmp/");
     expect(router).toContain("不写 Step Result，也不执行 `continue`");
     expect(router).toContain("复用相同的 `executionKey`");
