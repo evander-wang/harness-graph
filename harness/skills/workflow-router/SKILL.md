@@ -25,11 +25,11 @@ description: 从 Workflow Catalog 选择并自动执行当前工作区的本地 
 2. 为当前宿主任务确定稳定的 `executionKey`，恢复时必须复用；前置 Workflow 使用派生 Key `<executionKey>:prerequisite:<workflow-name>`。
 3. 先将每个前置 Workflow 执行到 `completed`。没有 `input` Schema 的前置 Workflow 使用 `{}` 作为输入；前置 Workflow 的 Skill 读取到的上下文保留在当前 Agent 任务中。任一前置 Workflow `blocked`、`failed` 或 `cancelled` 时停止，不启动目标 Workflow。
 4. 将目标 Workflow Input Schema 要求的最小输入写到 `harness-graph/.state/tmp/`，禁止写入 Secret 和完整 Prompt。普通开发 Workflow 的 Workspace 固定为业务项目根；只有“配置另一个项目”等明确场景才在业务 Input 中写入 `projectRoot`。
-5. 自动执行 `./harness-graph/bin/harness-graph start <workflow-path> <execution-key> <input-json>`。
+5. 将 Catalog 中所选 Workflow 的 `path` 字段原样作为 `<workflow-path>`，执行 `./harness-graph/bin/harness-graph start <workflow-path> <execution-key> <input-json>`。该路径相对 Harness Root，必须以 `workflows/` 开头；不得添加 `harness-graph/` 前缀，也不得转换为相对业务项目根目录的路径。
 6. 只加载返回的 `step.skillPath`、`step.checkPaths` 和必要输入。
 7. 执行当前 Skill 和需要 Agent 判断的 Check。
 8. 当前 Skill 或 Check 缺少可由用户补充的决定、授权或选择时，保持当前 Step 为 `in_progress`，不写 Step Result，也不执行 `continue`。向用户提出最小必要问题；用户回答后复用相同的 `executionKey`、`runId` 和 `revision` 继续当前 Step。只有无法通过用户回答继续时才提交 `blocked`。
-9. 将 `runId`、`revision`、`stepId`、`status`、`evidence` 和可选 `data` 写成 Step Result JSON。
+9. 将 `runId`、`revision`、`stepId`、`status`、`evidence` 和可选 `data` 写成 Step Result JSON；`evidence` 必须是至少包含一个非空字符串的数组。
 10. 将结果写到 `harness-graph/.state/tmp/`，自动执行 `./harness-graph/bin/harness-graph continue <run-id> <result-json>`。
 11. 返回下一个 Step 时重复第 6-10 步；`completed` 时进入执行摘要询问；`blocked`、`failed` 或 `cancelled` 时停止并输出必要的失败摘要。
 12. Workflow `completed` 后，如果当前宿主支持与用户交互，先询问：`是否输出本次 Workflow 执行摘要（Workflow、Step、Transition 和 Check）？` 用户确认后执行 `./harness-graph/bin/harness-graph report <run-id> --format markdown` 并交付结果；用户拒绝时不输出详细报告。
