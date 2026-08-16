@@ -18,11 +18,27 @@ npx --yes @jichaowang/harness-graph@latest install
 ./harness-graph/bin/harness-graph preflight
 ```
 
-升级到新版本时，重新执行对应版本的 `npx` 安装命令即可：
+升级到新版本时，重新执行对应版本的安装命令：
 
 ```bash
-npx --yes @jichaowang/harness-graph@<version> install
+npx @jichaowang/harness-graph@<version> install
 ```
+
+已有的 Workflow、Skill、Check、Model 或激活声明与新包不同时，`install` 会自动输出逐文件 Diff 并询问是否覆盖。拒绝覆盖仍会升级 Runtime 和项目托管入口，结果中的 `maintainedEntries` 会列出保留的差异资产。
+
+只查看 Diff、不执行安装：
+
+```bash
+npx --yes @jichaowang/harness-graph@<version> install --diff
+```
+
+非交互脚本需要覆盖差异资产时，在 `install` 后显式添加 `--yes`：
+
+```bash
+npx --yes @jichaowang/harness-graph@<version> install --yes
+```
+
+覆盖只同步新包中变化或新增的发布资产，不删除只存在于项目本地的自定义文件。存在运行中的 Run 时会拒绝覆盖；应先完成或取消该 Run。覆盖会丢弃同路径文件中的本地修改，因此建议先提交或备份并审阅 Diff。
 
 ## 使用 Agent
 

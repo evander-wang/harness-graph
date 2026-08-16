@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -88,6 +88,38 @@ describe("npm package release", () => {
       ["exec", "--yes", `--package=${tarballPath}`, "--", "harness-graph", "install", projectRoot],
       { cwd: smokeRoot, env, maxBuffer: 10 * 1024 * 1024 },
     );
+    const routerPath = join(projectRoot, "harness-graph/skills/workflow-router/SKILL.md");
+    await writeFile(routerPath, "用户修改的 Router\n", "utf8");
+    const preview = await execFileAsync(
+      "npm",
+      [
+        "exec",
+        "--yes",
+        `--package=${tarballPath}`,
+        "--",
+        "harness-graph",
+        "install",
+        "--diff",
+        projectRoot,
+      ],
+      { cwd: smokeRoot, env, maxBuffer: 10 * 1024 * 1024 },
+    );
+    expect(preview.stdout).toContain("--- a/harness-graph/skills/workflow-router/SKILL.md");
+    await execFileAsync(
+      "npm",
+      [
+        "exec",
+        "--yes",
+        `--package=${tarballPath}`,
+        "--",
+        "harness-graph",
+        "install",
+        "--yes",
+        projectRoot,
+      ],
+      { cwd: smokeRoot, env, maxBuffer: 10 * 1024 * 1024 },
+    );
+    expect(await readFile(routerPath, "utf8")).not.toBe("用户修改的 Router\n");
     const { stdout } = await execFileAsync(
       join(projectRoot, "harness-graph/bin/harness-graph"),
       ["preflight"],

@@ -1,18 +1,8 @@
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rename,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { activateWorkflowCatalog } from "../workflow/catalog.js";
-
 import {
   resolveHarnessPaths,
   type HarnessPaths,
@@ -49,7 +39,17 @@ import {
   writeManagedProjectFiles,
 } from "./managed-project-files.js";
 import { stageLegacyPublishedAssets } from "./legacy-assets.js";
-import { copyPayload, maintainedEntryChanges, readHarnessVersion } from "./payload.js";
+import {
+  copyPayload,
+  maintainedEntryChanges,
+  prepareMaintainedAssetChanges,
+  readHarnessVersion,
+  renderMaintainedAssetPreview,
+  restoreMaintainedAssetChanges,
+  writeMaintainedAssetChanges,
+  type MaintainedAssetChange,
+  type MaintainedAssetPreview,
+} from "./payload.js";
 import {
   assertSupportedNodeVersion,
   installRuntimeDependencies,
@@ -70,6 +70,12 @@ export type InstallHarnessProjectOptions = {
   projectRoot?: string;
   now?: () => Date;
   installRuntimeDependencies?: boolean;
+  overwriteMaintainedAssets?: boolean;
+};
+
+export type PreviewHarnessAssetChangesOptions = {
+  sourceRoot: string;
+  projectRoot?: string;
 };
 
 export type InstallHarnessProjectResult = {
@@ -79,6 +85,7 @@ export type InstallHarnessProjectResult = {
   harnessRoot: "harness-graph";
   command: "./harness-graph/bin/harness-graph route";
   maintainedEntries: string[];
+  overwrittenEntries: string[];
 };
 
 async function exists(path: string): Promise<boolean> {
@@ -248,6 +255,7 @@ async function migrateLegacyHarnessProject(
       harnessRoot: "harness-graph",
       command: "./harness-graph/bin/harness-graph route",
       maintainedEntries,
+      overwrittenEntries: [],
     };
   } catch (error: unknown) {
     await rollbackLegacyMigration(
@@ -340,16 +348,19 @@ type UpgradeRollback = {
   runtimeSwapped: boolean;
   projectSkillsChanged: boolean;
   managedChanged: boolean;
+  assetsChanged: boolean;
 };
 
 async function rollbackUpgrade(
   state: UpgradeRollback,
   paths: HarnessPaths,
   previousManifest: string,
+  previousCatalog: Buffer,
   runtimeBackupPath: string,
   projectRoot: string,
   projectSkills: Awaited<ReturnType<typeof prepareLegacyProjectSkills>>,
   managedUpdates: Awaited<ReturnType<typeof prepareManagedProjectFiles>>,
+  assetChanges: readonly MaintainedAssetChange[],
 ): Promise<void> {
   if (state.manifestChanged) {
     await writeInstallationManifestAtomically(paths.installationPath, previousManifest);
@@ -362,6 +373,10 @@ async function rollbackUpgrade(
     await restoreProjectSkillAdapters(projectRoot, projectSkills);
   }
   if (state.managedChanged) await restoreManagedProjectFiles(managedUpdates);
+  if (state.assetsChanged) {
+    await restoreMaintainedAssetChanges(assetChanges);
+    await writeFile(paths.catalogPath, previousCatalog);
+  }
 }
 
 async function upgradeHarnessProject(
@@ -373,6 +388,7 @@ async function upgradeHarnessProject(
   const manifestState = await assertCurrentInstallation(paths);
   const managedUpdates = await prepareManagedProjectFiles(projectRoot);
   const previousManifest = await readFile(paths.installationPath, "utf8");
+  const previousCatalog = await readFile(paths.catalogPath);
   const temporaryRoot = await mkdtemp(join(projectRoot, ".harness-graph-runtime-"));
   const runtimeBackupPath = join(temporaryRoot, "runtime-backup");
   const state: UpgradeRollback = {
@@ -380,10 +396,18 @@ async function upgradeHarnessProject(
     runtimeSwapped: false,
     projectSkillsChanged: false,
     managedChanged: false,
+    assetsChanged: false,
   };
   let projectSkills: Awaited<ReturnType<typeof prepareLegacyProjectSkills>> = [];
+  let assetChanges: MaintainedAssetChange[] = [];
   try {
     const runtime = await prepareRuntimeUpgrade(sourceRoot, temporaryRoot, paths, manifestState);
+    assetChanges = options.overwriteMaintainedAssets === true
+      ? await prepareMaintainedAssetChanges(sourceRoot, paths.harnessRoot)
+      : [];
+    if (assetChanges.length > 0 && await hasRecoverableRun(paths.stateRoot)) {
+      throw new Error("项目存在运行中的 Run，不能覆盖 Workflow、Skill、Check 或 Model。");
+    }
     projectSkills = await prepareUpgradeSkills(projectRoot, sourceRoot, manifestState);
     state.managedChanged = await writeManagedProjectFiles(managedUpdates);
     state.projectSkillsChanged = await writeProjectSkillAdapters(projectRoot, projectSkills);
@@ -395,32 +419,49 @@ async function upgradeHarnessProject(
       await rename(runtime.staged.root, paths.runtimeRoot);
       state.runtimeSwapped = true;
     }
-    const nextManifest = `${JSON.stringify(createUpgradedManifest(manifestState, runtime.staged), null, 2)}\n`;
+    if (assetChanges.length > 0) {
+      await writeMaintainedAssetChanges(assetChanges);
+      state.assetsChanged = true;
+      await activateWorkflowCatalog({ rootDir: paths.harnessRoot });
+    }
+    const upgradedManifest = createUpgradedManifest(manifestState, runtime.staged);
+    if (options.overwriteMaintainedAssets === true) {
+      upgradedManifest.harnessVersion = await readHarnessVersion(sourceRoot);
+    }
+    const nextManifest = `${JSON.stringify(upgradedManifest, null, 2)}\n`;
     if (nextManifest !== previousManifest) {
       await writeInstallationManifestAtomically(paths.installationPath, nextManifest);
       state.manifestChanged = true;
     }
-    if (manifestState.needsProjectSkillMigration || manifestState.needsLayoutMigration) {
+    if (
+      manifestState.needsProjectSkillMigration ||
+      manifestState.needsLayoutMigration ||
+      assetChanges.length > 0
+    ) {
       await checkHarnessProject({ projectRoot });
     }
-    if (state.runtimeSwapped) await rm(runtimeBackupPath, { recursive: true, force: true });
-    return {
+    const result: InstallHarnessProjectResult = {
       status: "installed",
       changed: Object.values(state).some(Boolean) || runtime.changed,
       projectRoot: ".",
       harnessRoot: "harness-graph",
       command: "./harness-graph/bin/harness-graph route",
       maintainedEntries: await maintainedEntryChanges(sourceRoot, paths.harnessRoot),
+      overwrittenEntries: assetChanges.map((change) => change.displayPath),
     };
+    if (state.runtimeSwapped) await rm(runtimeBackupPath, { recursive: true, force: true });
+    return result;
   } catch (error: unknown) {
     await rollbackUpgrade(
       state,
       paths,
       previousManifest,
+      previousCatalog,
       runtimeBackupPath,
       projectRoot,
       projectSkills,
       managedUpdates,
+      assetChanges,
     );
     throw error;
   } finally {
@@ -506,7 +547,24 @@ async function installFreshHarnessProject(
     harnessRoot: "harness-graph",
     command: "./harness-graph/bin/harness-graph route",
     maintainedEntries: [],
+    overwrittenEntries: [],
   };
+}
+
+export async function previewHarnessAssetChanges(
+  options: PreviewHarnessAssetChangesOptions,
+): Promise<MaintainedAssetPreview> {
+  assertSupportedNodeVersion();
+  const sourceRoot = resolve(options.sourceRoot);
+  const projectRoot = resolve(options.projectRoot ?? process.cwd());
+  const paths = resolveHarnessPaths({ projectRoot });
+  if (!(await exists(paths.harnessRoot))) {
+    throw new Error("项目尚未安装 Harness Graph；请先执行 install。");
+  }
+  await assertCurrentInstallation(paths);
+  return renderMaintainedAssetPreview(
+    await prepareMaintainedAssetChanges(sourceRoot, paths.harnessRoot),
+  );
 }
 
 export async function installHarnessProject(

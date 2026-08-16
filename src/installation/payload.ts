@@ -1,5 +1,6 @@
-import { access, cp, readFile, readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { access, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 import { RUNTIME_ENTRIES } from "./runtime-installation.js";
 
@@ -45,11 +46,43 @@ export async function copyPayload(sourceRoot: string, harnessRoot: string): Prom
   }
 }
 
-export async function maintainedEntryChanges(
+export type MaintainedAssetChange = {
+  displayPath: string;
+  targetPath: string;
+  current: Buffer | null;
+  next: Buffer;
+};
+
+export type MaintainedAssetPreview = {
+  entries: string[];
+  diff: string;
+};
+
+function displayLines(source: Buffer | null): string[] {
+  if (source === null || source.length === 0) return [];
+  const lines = source.toString("utf8").split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  return lines.map((line) => line.endsWith("\r") ? line.slice(0, -1) : line);
+}
+
+function renderAssetDiff(change: MaintainedAssetChange): string {
+  const current = displayLines(change.current);
+  const next = displayLines(change.next);
+  const path = `harness-graph/${change.displayPath}`;
+  return [
+    `--- ${change.current === null ? "/dev/null" : `a/${path}`}`,
+    `+++ b/${path}`,
+    `@@ -1,${String(current.length)} +1,${String(next.length)} @@`,
+    ...current.map((line) => `-${line}`),
+    ...next.map((line) => `+${line}`),
+  ].join("\n");
+}
+
+export async function prepareMaintainedAssetChanges(
   sourceRoot: string,
   harnessRoot: string,
-): Promise<string[]> {
-  const changed: string[] = [];
+): Promise<MaintainedAssetChange[]> {
+  const changes: MaintainedAssetChange[] = [];
   const visit = async (sourcePath: string, targetPath: string, displayPath: string): Promise<void> => {
     const sourceStat = await stat(sourcePath);
     if (sourceStat.isDirectory()) {
@@ -58,17 +91,69 @@ export async function maintainedEntryChanges(
       }
       return;
     }
-    if (!(await exists(targetPath))) {
-      changed.push(displayPath.split("\\").join("/"));
-      return;
+    const current = await exists(targetPath) ? await readFile(targetPath) : null;
+    const next = await readFile(sourcePath);
+    if (current === null || !current.equals(next)) {
+      changes.push({
+        displayPath: displayPath.split("\\").join("/"),
+        targetPath,
+        current,
+        next,
+      });
     }
-    const [source, target] = await Promise.all([readFile(sourcePath), readFile(targetPath)]);
-    if (!source.equals(target)) changed.push(displayPath.split("\\").join("/"));
   };
   for (const [source, target] of MAINTAINED_ENTRIES) {
     if (target !== "generated/workflow-catalog.json") {
       await visit(join(sourceRoot, source), join(harnessRoot, target), target);
     }
   }
-  return changed;
+  return changes;
+}
+
+export function renderMaintainedAssetPreview(
+  changes: readonly MaintainedAssetChange[],
+): MaintainedAssetPreview {
+  return {
+    entries: changes.map((change) => change.displayPath),
+    diff: changes.map(renderAssetDiff).join("\n\n"),
+  };
+}
+
+async function writeAtomically(path: string, source: Buffer): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporaryPath, source, { flag: "wx" });
+    await rename(temporaryPath, path);
+  } finally {
+    await rm(temporaryPath, { force: true });
+  }
+}
+
+export async function restoreMaintainedAssetChanges(
+  changes: readonly MaintainedAssetChange[],
+): Promise<void> {
+  for (const change of changes) {
+    if (change.current === null) await rm(change.targetPath, { force: true });
+    else await writeAtomically(change.targetPath, change.current);
+  }
+}
+
+export async function writeMaintainedAssetChanges(
+  changes: readonly MaintainedAssetChange[],
+): Promise<void> {
+  try {
+    for (const change of changes) await writeAtomically(change.targetPath, change.next);
+  } catch (error: unknown) {
+    await restoreMaintainedAssetChanges(changes);
+    throw error;
+  }
+}
+
+export async function maintainedEntryChanges(
+  sourceRoot: string,
+  harnessRoot: string,
+): Promise<string[]> {
+  return (await prepareMaintainedAssetChanges(sourceRoot, harnessRoot))
+    .map((change) => change.displayPath);
 }

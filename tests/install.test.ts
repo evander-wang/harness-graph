@@ -20,8 +20,10 @@ import { beforeAll, describe, expect, test } from "vitest";
 import {
   checkHarnessProject,
   installHarnessProject,
+  previewHarnessAssetChanges,
   resolveHarnessPaths,
 } from "../src/installation/installer.js";
+import { main } from "../src/cli.js";
 import { hashRuntimeArtifacts } from "../src/installation/runtime.js";
 
 const sourceRoot = resolve(import.meta.dirname, "..");
@@ -672,6 +674,103 @@ describe("installHarnessProject", () => {
       cwd: movedRoot,
     });
     expect(JSON.parse(result.stdout)).toMatchObject({ status: "ready", projectRoot: "." });
+  });
+
+  test("显式覆盖前可预览发布资产 Diff，确认后更新且保留目标端独有文件", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-graph-asset-overwrite-"));
+    await installForTest(workspaceRoot);
+    const skillPath = join(workspaceRoot, "harness-graph/skills/workflow-router/SKILL.md");
+    const customPath = join(workspaceRoot, "harness-graph/skills/project-custom/SKILL.md");
+    await writeFile(skillPath, "用户修改的 Router\n", "utf8");
+    await mkdir(join(workspaceRoot, "harness-graph/skills/project-custom"), { recursive: true });
+    await writeFile(customPath, "项目自定义 Skill\n", "utf8");
+
+    const preview = await previewHarnessAssetChanges({ sourceRoot, projectRoot: workspaceRoot });
+
+    expect(preview.entries).toContain("skills/workflow-router/SKILL.md");
+    expect(preview.diff).toContain("--- a/harness-graph/skills/workflow-router/SKILL.md");
+    expect(preview.diff).toContain("-用户修改的 Router");
+    expect(preview.diff).toContain("+---");
+    await expect(readFile(skillPath, "utf8")).resolves.toBe("用户修改的 Router\n");
+
+    const result = await installHarnessProject({
+      sourceRoot,
+      projectRoot: workspaceRoot,
+      installRuntimeDependencies: false,
+      overwriteMaintainedAssets: true,
+    });
+
+    await expect(readFile(skillPath, "utf8")).resolves.toBe(
+      await readFile(join(sourceRoot, "harness/skills/workflow-router/SKILL.md"), "utf8"),
+    );
+    await expect(readFile(customPath, "utf8")).resolves.toBe("项目自定义 Skill\n");
+    expect(result.overwrittenEntries).toContain("skills/workflow-router/SKILL.md");
+    expect(result.maintainedEntries).toEqual([]);
+    await expect(checkHarnessProject({ projectRoot: workspaceRoot })).resolves.toMatchObject({
+      status: "ready",
+    });
+  });
+
+  test("CLI 普通 install 自动输出 Diff 和询问，拒绝时不覆盖，--yes 时执行覆盖", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-graph-asset-cli-"));
+    await installForTest(workspaceRoot);
+    const skillPath = join(workspaceRoot, "harness-graph/skills/workflow-router/SKILL.md");
+    await writeFile(skillPath, "用户修改的 Router\n", "utf8");
+    const output: string[] = [];
+
+    const previewed = await main(["install", "--diff"], {
+      cwd: workspaceRoot,
+      stdout: (message) => output.push(message),
+      stderr: (message) => output.push(message),
+    });
+
+    expect(previewed).toBe(0);
+    expect(output.join("\n")).toContain("--- a/harness-graph/skills/workflow-router/SKILL.md");
+    await expect(readFile(skillPath, "utf8")).resolves.toBe("用户修改的 Router\n");
+
+    const cancelled = await main(["install"], {
+      cwd: workspaceRoot,
+      stdout: (message) => output.push(message),
+      stderr: (message) => output.push(message),
+      confirm: () => Promise.resolve(false),
+    });
+
+    expect(cancelled).toBe(0);
+    expect(output.join("\n")).toContain("--- a/harness-graph/skills/workflow-router/SKILL.md");
+    expect(output).toContain("已取消，未覆盖发布资产。");
+    await expect(readFile(skillPath, "utf8")).resolves.toBe("用户修改的 Router\n");
+
+    const updated = await main(["install", "--yes"], {
+      cwd: workspaceRoot,
+      stdout: (message) => output.push(message),
+      stderr: (message) => output.push(message),
+    });
+
+    expect(updated).toBe(0);
+    const result = JSON.parse(output.at(-1) ?? "{}") as { overwrittenEntries?: string[] };
+    expect(result.overwrittenEntries).toContain("skills/workflow-router/SKILL.md");
+    await expect(readFile(skillPath, "utf8")).resolves.toBe(
+      await readFile(join(sourceRoot, "harness/skills/workflow-router/SKILL.md"), "utf8"),
+    );
+  });
+
+  test("运行中的 Run 阻止发布资产覆盖并保留本地内容", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "harness-graph-asset-running-"));
+    await installForTest(workspaceRoot);
+    const skillPath = join(workspaceRoot, "harness-graph/skills/workflow-router/SKILL.md");
+    await writeFile(skillPath, "用户修改的 Router\n", "utf8");
+    const runRoot = join(workspaceRoot, "harness-graph/.state/runs/asset-running");
+    await mkdir(runRoot, { recursive: true });
+    await writeFile(join(runRoot, "state.json"), JSON.stringify({ status: "running" }), "utf8");
+
+    await expect(installHarnessProject({
+      sourceRoot,
+      projectRoot: workspaceRoot,
+      installRuntimeDependencies: false,
+      overwriteMaintainedAssets: true,
+    })).rejects.toThrow(/运行中的 Run.*不能覆盖/u);
+
+    await expect(readFile(skillPath, "utf8")).resolves.toBe("用户修改的 Router\n");
   });
 
   test("重复安装保留用户修改并报告冲突", async () => {
