@@ -5,17 +5,11 @@ import { realpathSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-
+import { createInterface } from "node:readline/promises";
 import type { FlatGraph } from "@openworkflowspec/sdk";
-
 import { checkNodeProject } from "./node-project/project-check.js";
 import { checkNodeTypeScriptPolicy } from "./node-project/node-typescript-policy.js";
-import {
-  checkHarnessProject,
-  installHarnessProject,
-  resolveHarnessPaths,
-  type HarnessPaths,
-} from "./installation/installer.js";
+import { checkHarnessProject, resolveHarnessPaths, type HarnessPaths } from "./installation/installer.js";
 import { compileWorkflow } from "./workflow/compiler.js";
 import {
   activateWorkflowCatalog,
@@ -29,18 +23,17 @@ import {
   startWorkflowRun,
   type StepResult,
 } from "./workflow/runtime.js";
-import {
-  loadWorkflowExecutionReport,
-  renderWorkflowExecutionReport,
-} from "./workflow/report.js";
+import { loadWorkflowExecutionReport, renderWorkflowExecutionReport } from "./workflow/report.js";
 import { renderWorkflowSvg } from "./workflow/svg-renderer.js";
 import { startWorkflowUiServer } from "./workflow/ui-server.js";
 import { isFirstPartyAssetRoot, validatePublishedAssetNames } from "./workflow/asset-naming.js";
+import { runInstallCommand } from "./installation/install-command.js";
 
 export type CliIo = {
   cwd: string;
   stdout: (message: string) => void;
   stderr: (message: string) => void;
+  confirm?: (question: string) => Promise<boolean>;
 };
 
 const REQUIRED_PATHS = [
@@ -458,20 +451,6 @@ async function reportCommand(
   }
 }
 
-async function installCommand(workspace: string | undefined, io: CliIo): Promise<number> {
-  try {
-    const result = await installHarnessProject({
-      sourceRoot: resolve(import.meta.dirname, ".."),
-      projectRoot: resolve(io.cwd, workspace ?? "."),
-    });
-    io.stdout(JSON.stringify(result));
-    return 0;
-  } catch (error: unknown) {
-    io.stderr(error instanceof Error ? error.message : String(error));
-    return 1;
-  }
-}
-
 async function preflightCommand(io: CliIo): Promise<number> {
   try {
     const result = await checkHarnessProject({
@@ -536,7 +515,7 @@ function missingArguments(io: CliIo): number {
 type CommandHandler = (args: string[], io: CliIo) => Promise<number> | number;
 
 const COMMAND_HANDLERS: Readonly<Record<string, CommandHandler>> = {
-  install: ([workspace], io) => installCommand(workspace, io),
+  install: (args, io) => runInstallCommand(args, io, resolve(import.meta.dirname, "..")),
   preflight: (_args, io) => preflightCommand(io),
   route: (_args, io) => routeCommand(io),
   doctor: (_args, io) => doctor(io),
@@ -592,10 +571,22 @@ if (
   entryPath !== undefined &&
   realpathSync(entryPath) === realpathSync(fileURLToPath(import.meta.url))
 ) {
+  const confirm = process.stdin.isTTY && process.stdout.isTTY
+    ? async (question: string): Promise<boolean> => {
+        const prompt = createInterface({ input: process.stdin, output: process.stdout });
+        try {
+          const answer = await prompt.question(`${question} [y/N] `);
+          return /^(?:y|yes)$/iu.test(answer.trim());
+        } finally {
+          prompt.close();
+        }
+      }
+    : undefined;
   const code = await main(process.argv.slice(2), {
     cwd: process.cwd(),
     stdout: console.log,
     stderr: console.error,
+    ...(confirm === undefined ? {} : { confirm }),
   });
   process.exitCode = code;
 }

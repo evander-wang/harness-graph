@@ -64,6 +64,8 @@ Codex 与 Claude Code 分别通过 `.agents/skills/harness-graph/SKILL.md` 和 `
 
 项目名称、Harness Root、CLI 和项目 Skill 从 `harness-next` 切换为 `harness-graph` 后，安装清单使用 `layoutVersion: 2`。同一个 `install` Interface 负责首次安装、当前布局幂等升级，以及旧 `layoutVersion: 1` 安装迁移，不增加第二个升级命令。
 
+当前布局重复安装发现 Workflow、Skill、Check、Model 或激活声明与新包不同时，普通 `install` 自动输出逐文件 Diff 并询问是否覆盖；拒绝时仍升级 Runtime、安装清单和项目托管入口，并通过 `maintainedEntries` 报告保留的差异。`install --diff` 只读预览后退出；非交互环境只有在 `install` 后显式提供 `--yes` 才覆盖。覆盖只更新或新增发布包中存在的文件，不删除目标端独有的自定义文件；运行中的 Run 会阻断覆盖。资产写入和 Catalog 激活属于同一回滚范围，失败时恢复覆盖前内容。
+
 旧布局迁移只存在于 `src/installation/`：安装器先验证旧清单、Runtime 哈希、托管块和宿主 Adapter，运行中的 Run 或新旧 Root 并存会阻断迁移；随后在 Project Root 的临时目录中复制并转换用户维护的发布资产、重建 Runtime 和 Catalog。新布局通过 preflight 后才切换托管入口并移除旧 Root，失败时保留原安装。Compiler、Router、Runtime 和 Workflow 只认识当前布局，不包含旧品牌分支。
 
 ## 模块结构
