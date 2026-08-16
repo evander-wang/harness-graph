@@ -16,7 +16,7 @@ description: 进入并执行当前项目安装的 Harness Graph Workflow。Use w
 5. 要求 `kind` 是 `harness-graph.router-directive`，只加载 `routerSkillPath` 指向的 Skill。
 6. 针对当前用户请求完整执行 Router Skill。
 
-没有显式 Workflow 时，由 Router 只从 Catalog 的 `entryWorkflows` 中选择。显式名称不存在、有歧义或不是入口 Workflow 时停止，不替换成其他 Workflow。
+Workflow 的选择、歧义和未命中行为以 Router Skill 的路由规则为准；本 Skill 只负责进入 Router，不重写或替代其路由决定。
 
 ## 禁止
 
