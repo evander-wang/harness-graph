@@ -94,6 +94,10 @@ npm run workflow:ui
 
 然后访问 [http://127.0.0.1:4173](http://127.0.0.1:4173)。不要直接双击打开 `web/index.html`，页面需要本地 UI 服务提供 Workflow API。
 
+### 界面预览
+
+![Harness Graph Workflow Web UI](docs/assets/harness-graph-webui.png)
+
 ### UI 操作
 
 - 点击左侧 Workflow 查看流程图。
