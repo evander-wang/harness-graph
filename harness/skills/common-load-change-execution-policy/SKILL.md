@@ -17,6 +17,14 @@ description: 加载所有本地修改类 Workflow 共享的执行协议。
 6. 计划文件是展示后允许的第一次写入；写入前仍须读取相邻约定、模板或同类文档。计划通过 Check 前不得修改生产代码或配置。分析 Step 的 evidence 使用 `planPath=<相对 Workspace Root 的路径>` 记录已保存计划。
 7. 单文件、低风险且不改变公开 Interface、Schema、迁移或发布行为的简单任务可以只在对话中展示计划，不制造计划文件；evidence 必须说明未落盘原因。
 
+## Git Worktree 与分支
+
+1. 修改类任务在业务项目根 `.worktree/` 下创建独立 worktree；一个任务只创建一个 worktree 和一个分支并持续复用，`.worktree/` 不纳入 Git 跟踪；目标尚不存在 Git 仓的新建项目场景除外。
+2. 分支命名使用业界通用格式 `<type>/<kebab-case 描述>`，type 对齐 Conventional Commits：`feat`、`fix`、`hotfix`、`refactor`、`docs`、`test`、`perf`、`chore`；需要追溯需求时在描述前加 Issue 编号。示例：`fix/login-timeout`、`feat/JIRA-123-user-register`。
+3. 每个实际写入仓写文件前过基线门：`git rev-parse --show-toplevel`、`git branch --show-current`、`git status --short --branch`；确认非 detached HEAD，发现无关或归属未知的 dirty 变更时停止并报告。
+4. 同步基线只允许安全 fast-forward；禁止 merge、stash、reset 或其他覆盖现有变更的方式。
+5. 禁止通过文件系统命令直接编辑、移动或删除 `.git` 元数据；force push 每次执行前单独取得人工确认；主分支默认通过 MR 和人工 Review 合入。
+
 ## 项目知识文档
 
 1. 分析前读取目标 Workspace 中已经存在且与任务相关的项目规则、`CONTEXT.md`、项目 `STANDARDS.md` 和 `docs/adr/`；不存在时不创建占位文件。
@@ -38,5 +46,11 @@ description: 加载所有本地修改类 Workflow 共享的执行协议。
 2. 缺少用户决定、额外授权或不可逆选择时，保持当前 Step、停止修改并提出最小必要问题。用户回答后恢复当前 Run；只有无法通过用户回答继续时才提交 `blocked`。
 3. 只实现已展示的计划范围。发现无关问题时记录为剩余风险，不顺手修复；确需扩大范围时先更新计划文件并向用户说明。
 4. 修改可执行代码或配置后，没有适用测试和验证命令的成功证据不得交付为完成。纯文档 Workflow 使用自身声明的适用验证，不伪造未执行的命令。
+
+## 事实与证据
+
+1. 输出必须区分事实与推测；可靠事实只来自实际执行结果、用户明确确认、项目文档和当前代码。
+2. 网络搜索结果只作为灵感线索，不作为可靠事实源。
+3. 证据不足时先采集事实或询问用户，不脑补。
 
 本 Step 不分析具体需求、不修改文件、不运行项目检查。完成后只提交已加载协议版本和 Skill 路径的证据。

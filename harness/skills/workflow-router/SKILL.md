@@ -15,7 +15,7 @@ description: 从 Workflow Catalog 选择并自动执行当前工作区的本地 
 4. 只读取 `harness-graph/generated/workflow-catalog.json`。
 5. 只从 Catalog 的 `entryWorkflows` 中选择 Workflow；`workflows` 中但不在 `entryWorkflows` 的项只能作为前置依赖，不能被用户直接选择。
 6. 用户明确指定 Workflow 名称或 Alias 时直接选择；否则根据 `routing.when` 和 `routing.notWhen` 选择。
-7. 路由结果只有一个明确候选时选择并继续；多个候选时停止，列出候选及歧义点并请用户选择；没有候选时，先明确告知用户当前任务未命中可用 Workflow，然后不等待用户确认、不启动 Workflow，直接按照用户请求、项目规范和 Agent 对任务的理解继续执行。没有候选包括用户明确指定的 Workflow 名称或 Alias 不存在，或者对应 Workflow 不属于 `entryWorkflows`；不得伪造、替换或强行套用其他 Workflow。
+7. 路由结果只有一个明确候选时选择并继续；多个候选时停止，列出候选及歧义点并请用户选择；没有候选时，先明确告知用户当前任务未命中可用 Workflow，然后不等待用户确认、不启动 Workflow；先读取 `harness-graph/skills/common-load-change-execution-policy/SKILL.md`，把其中的执行协议作为本次任务约束，再按照用户请求、项目规范和 Agent 对任务的理解继续执行。没有候选包括用户明确指定的 Workflow 名称或 Alias 不存在，或者对应 Workflow 不属于 `entryWorkflows`；不得伪造、替换或强行套用其他 Workflow。
 
 ## 自动执行
 
